@@ -80,11 +80,25 @@ switch:
 
   - platform: gpio
     id: buzzer
+    name: "Buzzer"
+    icon: mdi:bullhorn
+    restore_mode: ALWAYS_OFF
     pin:
       waveshare_io_ch32v003: wave_io
       number: 6  # EXIO6 - BEE_EN
       mode:
         output: true
+
+button:
+  # Momentary buzzer test - confirms EXIO6 is wired to an active buzzer.
+  # If you hear nothing here, the buzzer is passive and EXIO6 alone
+  # cannot drive it (CH32V003 PWM register 0x05 is used by the backlight).
+  - platform: template
+    name: "Test Buzzer (200ms)"
+    on_press:
+      - switch.turn_on: buzzer
+      - delay: 200ms
+      - switch.turn_off: buzzer
 
 # -------------------------------------------
 # Backlight - hardware PWM via CH32V003 (register 0x05)
