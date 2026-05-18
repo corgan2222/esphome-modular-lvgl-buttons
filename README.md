@@ -356,7 +356,7 @@ Additional UI modules under `ui/` for specific integrations:
 | `ui/weather/forecast.yaml` | 4-day forecast widget via `weather.get_forecasts` |
 | `ui/solar/` | Enphase / solar production and consumption monitoring |
 | `ui/tides/tide_update.yaml` | NOAA tide clock with gauge display |
-| `ui/tides/NOAA_tide_update.yaml` | NOAA API integration for tide data |
+| `ui/tides/NOAA_tide_update.yaml` | NOAA CO-OPS API tide data with HA sensors (level, percentage, high/low times). Vars: `noaa_station_id`, `noaa_unit_system` (`english`/`metric`), `noaa_unit_of_measurement` (`ft`/`m`). |
 
 See `example_code/advanced/` for full working configs using these modules.
 

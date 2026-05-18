@@ -11,12 +11,26 @@
 #                    Find yours at: https://tidesandcurrents.noaa.gov/map/
 #
 # Optional vars:
-#   noaa_unit_system: "english" or "metric" (default: "english")
-#                     The display unit label ("ft" or "m") is derived
-#                     automatically from this setting.
+#   noaa_unit_system:          "english" or "metric"  (default: "english")
+#                              Selects the units returned by the NOAA API.
+#   noaa_unit_of_measurement:  Unit label exposed to Home Assistant on the
+#                              level sensors.  Default: "ft".  Set to "m"
+#                              when using noaa_unit_system: "metric".
 #
-# Note: ESP32 timezone should match the NOAA station's timezone for
-#       correct local time display. Epoch comparisons are timezone-safe.
+# Time zone handling:
+#   Predictions are requested from NOAA in GMT and converted to epoch using
+#   a TZ-independent algorithm.  The device's local time zone (set by your
+#   time component, e.g. homeassistant) is only used for *display* via
+#   localtime_r(), so DST and offset changes are handled automatically.
+#
+# Sensors published to Home Assistant:
+#   sensor.tide_percentage     (%, 1 decimal, mdi:waves)
+#   sensor.high_tide_level     (ft|m, 2 decimals, mdi:wave-arrow-up)
+#   sensor.low_tide_level      (ft|m, 2 decimals, mdi:wave-arrow-down)
+#   sensor.mean_high_water     (ft|m, 2 decimals, mdi:waves-arrow-up)
+#   sensor.mean_low_water      (ft|m, 2 decimals, mdi:waves-arrow-left)
+#   text_sensor.high_tide_time (mdi:clock-time-eight)
+#   text_sensor.low_tide_time  (mdi:clock-time-two)
 #
 # Usage in your main config:
 #   packages:
@@ -24,7 +38,8 @@
 #       file: esphome-modular-lvgl-buttons/ui/tides/NOAA_tide_update.yaml
 #       vars:
 #         noaa_station_id: "9414290"
-#         noaa_unit_system: "english"   # or "metric"
+#         noaa_unit_system: "english"            # or "metric"
+#         noaa_unit_of_measurement: "ft"         # or "m"
 # ═══════════════════════════════════════════════════════════════════════════════
 
 http_request:
@@ -32,6 +47,7 @@ http_request:
 # Defaults for optional vars (used when not provided by the caller)
 defaults:
   noaa_unit_system: english
+  noaa_unit_of_measurement: ft  # "ft" for english, "m" for metric
 
 # -------------------------------------------
 # Global Variables
@@ -89,7 +105,11 @@ sensor:
   - platform: template
     name: "Tide Percentage"
     id: tide_percentage
+    icon: mdi:waves
+    unit_of_measurement: "%"
     accuracy_decimals: 1
+    filters:
+      - round: 1
     update_interval: 60s
     lambda: |-
       time_t last_e = id(noaa_last_tide_epoch);
@@ -115,7 +135,11 @@ sensor:
   - platform: template
     name: "High Tide Level"
     id: high_tide_level
+    icon: mdi:wave-arrow-up
+    unit_of_measurement: "${noaa_unit_of_measurement}"
     accuracy_decimals: 2
+    filters:
+      - round: 2
     update_interval: never
     on_value:
       then:
@@ -128,7 +152,11 @@ sensor:
   - platform: template
     name: "Low Tide Level"
     id: low_tide_level
+    icon: mdi:wave-arrow-down
+    unit_of_measurement: "${noaa_unit_of_measurement}"
     accuracy_decimals: 2
+    filters:
+      - round: 2
     update_interval: never
     on_value:
       then:
@@ -143,13 +171,21 @@ sensor:
   - platform: template
     name: "Mean High Water"
     id: mean_high_water
+    icon: mdi:waves-arrow-up
+    unit_of_measurement: "${noaa_unit_of_measurement}"
     accuracy_decimals: 2
+    filters:
+      - round: 2
     update_interval: never
 
   - platform: template
     name: "Mean Low Water"
     id: mean_low_water
+    icon: mdi:waves-arrow-left
+    unit_of_measurement: "${noaa_unit_of_measurement}"
     accuracy_decimals: 2
+    filters:
+      - round: 2
     update_interval: never
 
 # -------------------------------------------
@@ -159,6 +195,7 @@ text_sensor:
   - platform: template
     name: "High Tide Time"
     id: high_tide_time_sensor
+    icon: mdi:clock-time-eight
     update_interval: never
     on_value:
       then:
@@ -171,6 +208,7 @@ text_sensor:
   - platform: template
     name: "Low Tide Time"
     id: low_tide_time_sensor
+    icon: mdi:clock-time-two
     update_interval: never
     on_value:
       then:
@@ -292,7 +330,7 @@ script:
                     "begin_date=%s&end_date=%s"
                     "&station=${noaa_station_id}"
                     "&product=predictions&datum=MLLW&interval=hilo"
-                    "&time_zone=lst_ldt&units=${noaa_unit_system}"
+                    "&time_zone=gmt&units=${noaa_unit_system}"
                     "&application=ESPHome&format=json",
                     begin_buf, end_buf);
                   ESP_LOGD("noaa", "Request URL: %s", url);
@@ -357,8 +395,21 @@ script:
                             tm_time.tm_mday = dy;
                             tm_time.tm_hour = hr;
                             tm_time.tm_min = mn;
-                            tm_time.tm_isdst = -1;
-                            time_t pred_epoch = mktime(&tm_time);
+                            tm_time.tm_isdst = 0;
+                            // NOAA returns GMT; convert UTC tm -> epoch without
+                            // relying on the system TZ (timegm() not in newlib).
+                            // Days from 1970-01-01 to start of (yr, mo, dy):
+                            int y = yr;
+                            int m = mo;
+                            if (m <= 2) { y -= 1; m += 12; }
+                            long era = (y >= 0 ? y : y - 399) / 400;
+                            unsigned yoe = (unsigned)(y - era * 400);
+                            unsigned doy = (153 * (m - 3) + 2) / 5 + dy - 1;
+                            unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+                            long days = era * 146097L + (long)doe - 719468L;
+                            time_t pred_epoch = (time_t)days * 86400L
+                                              + (time_t)hr * 3600
+                                              + (time_t)mn * 60;
 
                             float level = atof(v);
                             bool is_high = (strcmp(type_str, "H") == 0);
