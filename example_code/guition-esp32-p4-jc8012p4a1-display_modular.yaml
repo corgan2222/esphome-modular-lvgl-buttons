@@ -1,4 +1,3 @@
----
 # Substitution variables used through the codebase
 substitutions:
   icon_font: mdi_icons_40
@@ -14,12 +13,15 @@ substitutions:
   button_text_color: "white"
 
   # LCD back light modes - Code in backlight_time.yaml
-  display_daytime_brightness: "100%"
-  display_nighttime_brightness: "50%"
-  display_night_hour: "0"      # Hour for night mode (0-23)
-  display_night_minute: "0"    # Minute for night mode (0-59)
-  display_backlight_timeout_always_enabled: "false"  # Set true to dim/off in all modes, not just Night
-  display_backlight_timeout_initial: "5"  # Initial backlight timeout in minutes (-1 to disable)
+  # Set Day mode - starts at Sunrise - screen at 100%
+  touchscreen_daytime_brightness: "100%"
+  # Set Evening mode -  starts at Sunset - screen at 50% (may need to be brighter for some screens)
+  touchscreen_nighttime_brightness: "50%"
+  # Set Night mode start time (default is midnight)
+  touchscreen_night_hour: "0"      # Hour for night mode (0-23)
+  touchscreen_night_minute: "0"    # Minute for night mode (0-59)
+  # Set touchscreen idle timeout - In night mode back light goes off after this amount of time
+  touchscreen_idle_timeout: "60s"
 
 esphome:
   name: "guition-esp32-p4-jc8012p4a1"
@@ -35,38 +37,32 @@ logger:
   logs:
     lvgl: info
   hardware_uart: UART0
-
+  
 # Some screens need little_endian byte order and some need big_endian
 # this sets the byte order for all the images loaded in this file and the packages as well
 image:
   defaults:
-    byte_order: little_endian
+    byte_order: little_endian  
 
 # Time update script - This is run once per second. Use it to update any time related labels.
 script:
-  # --------------------------------------------------------------------------
-  # This script is called once per minute.
-  # Any packages in this library will !extend time_update to update their own labels.
-  # You can add code here to update your own custom labels.
-  # --------------------------------------------------------------------------
   - id: time_update
     then:
-      - lambda: |-
-          // No operation
-
+        # The format %I:%M %p will display the time in a 12-hour format with "am" or "pm" included  
+      - lvgl.label.update:
+          id: time_label
+          text: !lambda 'return id(system_time).now().strftime("%l:%M %P");'    
+          
 packages:
   # Generic configuration for ESP32 screens
   # SDL has no Wi-Fi
   wifi: !include esphome-modular-lvgl-buttons/common/wifi.yaml
   # Enable OTA updates with a status screen
   ota_screen: !include esphome-modular-lvgl-buttons/common/ota.yaml
-  # All the colors
+  # All the colors, fonts and MDI glyphs
   theme:  !include esphome-modular-lvgl-buttons/common/theme/index.yaml
-  # Some nice basic fonts
-  # 1000s of glyphs
   # Some basic sensors
   sensors: !include esphome-modular-lvgl-buttons/common/sensors_base.yaml
-  # Styles + Themes
   # Use this theme for debugging
   # theme:  !include esphome-modular-lvgl-buttons/common/theme/index_debug.yaml  # uncomment to enable debug outlines
   # Include if your touch screen has a backlight. Also sets the time from HA
@@ -76,7 +72,8 @@ packages:
   hardware: !include
     file: esphome-modular-lvgl-buttons/hardware/guition-esp32-p4-jc8012p4a1.yaml
     vars:
-      rotation: "180"  # set screen rotation 0, 90, 180, 270
+      rotation: "0"  # set screen rotation 0, 90, 180, 270
+
   # Basic boot screen with ESPHome logo and device diagnostic info
   loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
   # info screen - WiFi login, IP address, MAC address etc
@@ -117,14 +114,14 @@ packages:
       icon: $mdi_information_box
       click_page: info_screen
 
-  # Add a light
+  # Add a dimmer light
   button_4: !include
     file: esphome-modular-lvgl-buttons/ui/light/remote.yaml
     vars:
       uid: button_4
       row: 2
       column: 0
-      row_span: 2
+      row_span: 2 # optional make a button bigger then one cell
       text: RGB light
       icon: $mdi_string_lights
       entity_id: light.athom_rgb_light_d93662_rgb_light_strip
@@ -132,30 +129,31 @@ packages:
 
 # This is the main LVGL section. We start with a simple grid.
 lvgl:
+  buffer_size: 100%
   pages:
     - id: main_page
       layout: 8x4
       styles: page_style
       <<: !include esphome-modular-lvgl-buttons/common/swipe_navigation.yaml
       widgets:
-        # You can use the package section above to add prebuilt button types or build your own custom button from scratch here.
-        - container:
-            id: button_12
-            grid_cell_x_align: stretch
-            grid_cell_y_align: stretch
-            grid_cell_row_pos: 3
-            grid_cell_column_pos: 3
-            grid_cell_row_span: 1
-            grid_cell_column_span: 1
-            outline_width: 1   # debug code - This is for visualizing boundaries remove for production
-            outline_color: red  # debug code - This is for visualizing boundaries remove for production
-            widgets:
-              - label:
-                  text_font: $text_font
-                  align: center
-                  text_color: white
-                  text: "Cell 3,7"
-
+          # You can use the package section above to add prebuilt button types or build your own custom button from scratch here.
+          - container:
+              id: button_12
+              grid_cell_x_align: stretch
+              grid_cell_y_align: stretch
+              grid_cell_row_pos: 3
+              grid_cell_column_pos: 3
+              grid_cell_row_span: 1
+              grid_cell_column_span: 1
+              outline_width: 1   # debug code - This is for visualizing boundries remove for production
+              outline_color: red # debug code - This is for visualizing boundries remove for production
+              widgets:
+                - label:
+                    text_font: $text_font
+                    align: center
+                    text_color: white
+                    text: "Cell 3,7"
+  
 # If you want to use other icons add them to the list here
 font:
   # http://materialdesignicons.com/cdn/7.4.47/
