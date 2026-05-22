@@ -1,5 +1,6 @@
 ---
-# Remote Home-Assistant light tile + color popup.
+# Home-Assistant light tile + color popup.
+# Subscribes to a HA light entity; toggles & adjusts via homeassistant.action.
 #
 # Tile: icon + label + brightness slider. Short-click toggles the light;
 # long-press opens a per-instance color popup with rainbow hue + kelvin
@@ -49,6 +50,15 @@ globals:
     initial_value: 'false'
   # Suppress HA→UI sync echoes so we don't re-send values we just received
   - id: ${uid}_suspend_send
+    type: bool
+    initial_value: 'false'
+  # True when hs_color is currently providing valid hue/sat. Used to gate the
+  # rgb_color fallback handler so it only fires on rgb*-mode lights (WLED).
+  - id: ${uid}_hs_color_valid
+    type: bool
+    initial_value: 'false'
+  # Set by the rgb_color handler after a successful sscanf parse.
+  - id: ${uid}_rgb_color_applied
     type: bool
     initial_value: 'false'
 
@@ -347,8 +357,6 @@ lvgl:
                 on_short_click:
                   - script.execute: popup_close
 
-# ── HA state ──────────────────────────────────────────────────────────────────
-
 binary_sensor:
   - id: ${uid}_ha_state
     platform: homeassistant
@@ -426,6 +434,7 @@ text_sensor:
                                   : std::string::npos;
                   id(${uid}_current_saturation) =
                       atof(s.substr(cstart, clen).c_str());
+                  id(${uid}_hs_color_valid) = true;
                 }
             - globals.set:
                 id: ${uid}_suspend_send
@@ -440,6 +449,72 @@ text_sensor:
                 id: ${uid}_suspend_send
                 value: 'false'
             - script.execute: ${uid}_update_bulb_color
+          else:
+            # hs_color is None — defer to rgb_color handler.
+            - globals.set:
+                id: ${uid}_hs_color_valid
+                value: 'false'
+
+  # RGB color — HA returns a tuple string like "(255, 128, 0)".
+  # HA only populates hs_color when the active color_mode is `hs`; lights
+  # running in rgb/rgbw/rgbww (e.g. WLED) report hs_color: None. This sensor
+  # fills the gap by deriving hue/sat from rgb_color. The hs_color sensor
+  # above remains authoritative for hs-native lights — this only runs when
+  # hs_color is absent (the global is reset to a sentinel by hs_color when it
+  # successfully parses; we check it here).
+  - id: ${uid}_ha_rgb_color
+    platform: homeassistant
+    entity_id: ${entity_id}
+    attribute: rgb_color
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: |-
+              // Only apply if hs_color isn't carrying real data right now.
+              return !x.empty() && x != "None" && !id(${uid}_hs_color_valid);
+          then:
+            - lambda: |-
+                int r = 0, g = 0, b = 0;
+                // Tolerate both "(r, g, b)" and "r, g, b" formats.
+                int parsed = sscanf(x.c_str(), " ( %d , %d , %d )", &r, &g, &b);
+                if (parsed != 3) parsed = sscanf(x.c_str(), " %d , %d , %d", &r, &g, &b);
+                if (parsed == 3) {
+                  float rf = r / 255.0f, gf = g / 255.0f, bf = b / 255.0f;
+                  float mx = std::max({rf, gf, bf});
+                  float mn = std::min({rf, gf, bf});
+                  float d = mx - mn;
+                  float h = 0.0f;
+                  float s = (mx == 0.0f) ? 0.0f : (d / mx) * 100.0f;
+                  if (d > 0.0001f) {
+                    if      (mx == rf) h = 60.0f * fmod(((gf - bf) / d), 6.0f);
+                    else if (mx == gf) h = 60.0f * (((bf - rf) / d) + 2.0f);
+                    else               h = 60.0f * (((rf - gf) / d) + 4.0f);
+                    if (h < 0) h += 360.0f;
+                  }
+                  id(${uid}_current_hue) = h;
+                  id(${uid}_current_saturation) = s;
+                  id(${uid}_rgb_color_applied) = true;
+                } else {
+                  id(${uid}_rgb_color_applied) = false;
+                }
+            - if:
+                condition:
+                  lambda: 'return id(${uid}_rgb_color_applied);'
+                then:
+                  - globals.set:
+                      id: ${uid}_suspend_send
+                      value: 'true'
+                  - lvgl.arc.update:
+                      id: ${uid}_hue_arc
+                      value: !lambda return (int) id(${uid}_current_hue);
+                  - lvgl.slider.update:
+                      id: ${uid}_sat_slider
+                      value: !lambda return (int) id(${uid}_current_saturation);
+                  - globals.set:
+                      id: ${uid}_suspend_send
+                      value: 'false'
+                  - script.execute: ${uid}_update_bulb_color
 
   - id: ${uid}_ha_supported_modes
     platform: homeassistant
@@ -448,12 +523,34 @@ text_sensor:
     internal: true
     on_value:
       - lambda: |-
-          id(${uid}_supports_color_temp) = x.find("color_temp") != std::string::npos;
-          id(${uid}_supports_rgb)        = x.find("rgb") != std::string::npos ||
-                                           x.find("hs")  != std::string::npos;
+          // HA supported_color_modes values:
+          //   onoff, brightness, color_temp, hs, rgb, rgbw, rgbww, xy, white
+          bool has_rgbww = x.find("rgbww") != std::string::npos;
+          bool has_rgbw  = x.find("rgbw")  != std::string::npos;
+          bool has_rgb   = x.find("rgb")   != std::string::npos;  // matches rgb/rgbw/rgbww
+          bool has_hs    = x.find("hs")    != std::string::npos;
+          bool has_xy    = x.find("xy")    != std::string::npos;
+          bool has_ct    = x.find("color_temp") != std::string::npos;
+          bool has_white = (x.find("\"white\"") != std::string::npos) ||
+                           (x.find("'white'")  != std::string::npos);
+          bool has_br    = x.find("brightness") != std::string::npos;
+
+          id(${uid}_supports_color_temp) = has_ct;
+          id(${uid}_supports_rgb)        = has_rgb || has_hs || has_xy;
           id(${uid}_supports_brightness) = id(${uid}_supports_rgb) ||
                                            id(${uid}_supports_color_temp) ||
-                                           x.find("brightness") != std::string::npos;
+                                           has_br || has_white;
+
+          ESP_LOGI("light.caps",
+                   "[%s] supported_color_modes=%s "
+                   "-> rgb=%d ct=%d brightness=%d "
+                   "(rgbww=%d rgbw=%d hs=%d xy=%d white=%d br_only=%d)",
+                   "${entity_id}", x.c_str(),
+                   id(${uid}_supports_rgb),
+                   id(${uid}_supports_color_temp),
+                   id(${uid}_supports_brightness),
+                   has_rgbww, has_rgbw, has_hs, has_xy, has_white, has_br);
+
 
 # ── Scripts ───────────────────────────────────────────────────────────────────
 
@@ -466,56 +563,36 @@ script:
   # Show this instance's popup (also bring up the scrim).
   - id: ${uid}_show_popup
     then:
+      # Default to Kelvin mode for CT-only lights; HSV otherwise.
+      - lambda: |-
+          id(${uid}_mode_kelvin) =
+            id(${uid}_supports_color_temp) && !id(${uid}_supports_rgb);
+      - if:
+          condition:
+            lambda: 'return id(${uid}_mode_kelvin);'
+          then:
+            - lvgl.widget.hide: ${uid}_hue_ring_image
+            - lvgl.widget.hide: ${uid}_hue_arc
+            - lvgl.widget.hide: ${uid}_sat_slider
+            - lvgl.widget.hide: ${uid}_sat_icon
+            - lvgl.widget.show: ${uid}_kelvin_ring_image
+            - lvgl.widget.show: ${uid}_kelvin_arc
+            - lvgl.label.update:
+                id: ${uid}_mode_toggle_label
+                text: $mdi_eyedropper
+          else:
+            - lvgl.widget.show: ${uid}_hue_ring_image
+            - lvgl.widget.show: ${uid}_hue_arc
+            - lvgl.widget.show: ${uid}_sat_slider
+            - lvgl.widget.show: ${uid}_sat_icon
+            - lvgl.widget.hide: ${uid}_kelvin_ring_image
+            - lvgl.widget.hide: ${uid}_kelvin_arc
+            - lvgl.label.update:
+                id: ${uid}_mode_toggle_label
+                text: $mdi_white_balance_sunny
       - lvgl.widget.show: popup_scrim
       - lvgl.widget.show: ${uid}_popup
       - script.execute: ${uid}_picker_update
-
-  # HA actions
-  - id: ${uid}_light_toggle
-    then:
-      - homeassistant.action:
-          action: light.toggle
-          data:
-            entity_id: ${entity_id}
-
-  - id: ${uid}_light_set_brightness
-    then:
-      - homeassistant.action:
-          action: light.turn_on
-          data:
-            entity_id: ${entity_id}
-            brightness: !lambda return (int)(id(${uid}_current_brightness) * 255.0f);
-      - script.execute: ${uid}_update_bulb_color
-
-  - id: ${uid}_light_apply_hs
-    then:
-      - if:
-          condition:
-            lambda: 'return id(${uid}_suspend_send);'
-          then: []
-          else:
-            - homeassistant.action:
-                action: light.turn_on
-                data:
-                  entity_id: ${entity_id}
-                data_template:
-                  hs_color: "{{ (hue|float, sat|float)|list }}"
-                variables:
-                  hue: !lambda return id(${uid}_current_hue);
-                  sat: !lambda return id(${uid}_current_saturation);
-
-  - id: ${uid}_light_apply_color_temp
-    then:
-      - if:
-          condition:
-            lambda: 'return id(${uid}_suspend_send);'
-          then: []
-          else:
-            - homeassistant.action:
-                action: light.turn_on
-                data:
-                  entity_id: ${entity_id}
-                  color_temp_kelvin: !lambda return (int) id(${uid}_current_color_temp);
 
   # Toggle HSV ↔ Kelvin display in the popup
   - id: ${uid}_mode_toggle
@@ -638,3 +715,49 @@ script:
             ? (int)(id(${uid}_current_brightness) * 60.0f)
             : 0;
           lv_obj_set_style_shadow_width(id(${uid}_bulb_container), aura, LV_PART_MAIN);
+
+  - id: ${uid}_light_toggle
+    then:
+      - homeassistant.action:
+          action: light.toggle
+          data:
+            entity_id: ${entity_id}
+
+  - id: ${uid}_light_set_brightness
+    then:
+      - homeassistant.action:
+          action: light.turn_on
+          data:
+            entity_id: ${entity_id}
+            brightness: !lambda return (int)(id(${uid}_current_brightness) * 255.0f);
+      - script.execute: ${uid}_update_bulb_color
+
+  - id: ${uid}_light_apply_hs
+    then:
+      - if:
+          condition:
+            lambda: 'return id(${uid}_suspend_send);'
+          then: []
+          else:
+            - homeassistant.action:
+                action: light.turn_on
+                data:
+                  entity_id: ${entity_id}
+                data_template:
+                  hs_color: "{{ (hue|float, sat|float)|list }}"
+                variables:
+                  hue: !lambda return id(${uid}_current_hue);
+                  sat: !lambda return id(${uid}_current_saturation);
+
+  - id: ${uid}_light_apply_color_temp
+    then:
+      - if:
+          condition:
+            lambda: 'return id(${uid}_suspend_send);'
+          then: []
+          else:
+            - homeassistant.action:
+                action: light.turn_on
+                data:
+                  entity_id: ${entity_id}
+                  color_temp_kelvin: !lambda return (int) id(${uid}_current_color_temp);
