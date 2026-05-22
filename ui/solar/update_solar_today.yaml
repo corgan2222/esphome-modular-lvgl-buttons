@@ -1,9 +1,11 @@
 ---
 substitutions:
-  # Set in your top-level YAML to enable a SECOND Enphase IQ Gateway.
-  # Leave empty (default) for single-Envoy installs -- no other changes
-  # required. When set, the four "today" totals below are summed across
-  # both Envoys.
+  # Set in your top-level YAML to enable a SECOND Envoy / IQ Gateway.
+  # Use the same suffix format as ${envoy_id} (the part that fills
+  # `sensor.envoy_<suffix>_...`). Leave empty (default) for single-Envoy
+  # installs -- no other changes required. When set, the four "today"
+  # totals below are summed across both Envoys. Whitespace-only values
+  # are treated as empty.
   envoy_id_2: ""
 
   # Home Assistant sensor entity IDs
@@ -34,7 +36,8 @@ script:
                 '$ha_sensor_production',
                 '$ha_sensor_net_production'
               ] %}
-              {% if '${envoy_id_2}' | length > 0 %}
+              {% set envoy_2 = '${envoy_id_2}' | trim %}
+              {% if envoy_2 | length > 0 %}
                 {% set ids = ids + [
                   '$ha_sensor_net_consumption_2',
                   '$ha_sensor_production_2',
@@ -65,7 +68,8 @@ script:
             {% set net_consumption = get_kwh('$ha_sensor_net_consumption') | float %}
             {% set production = get_kwh('$ha_sensor_production') | float %}
             {% set net_production = get_kwh('$ha_sensor_net_production') | float %}
-            {% if '${envoy_id_2}' | length > 0 %}
+            {% set envoy_2 = '${envoy_id_2}' | trim %}
+            {% if envoy_2 | length > 0 %}
               {% set net_consumption = net_consumption + (get_kwh('$ha_sensor_net_consumption_2') | float) %}
               {% set production = production + (get_kwh('$ha_sensor_production_2') | float) %}
               {% set net_production = net_production + (get_kwh('$ha_sensor_net_production_2') | float) %}
