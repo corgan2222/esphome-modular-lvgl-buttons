@@ -57,16 +57,15 @@ script:
 
 packages:
   # Generic configuration for ESP32 screens
-  # All the colors
-  theme:  !include esphome-modular-lvgl-buttons/common/theme/index.yaml
-  # Fonts you need
-  # 1000s of glyphs
   # Some basic sensors
   sensors: !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml
   # Get the time from HA
   time: !include esphome-modular-lvgl-buttons/common/time_homeassistant.yaml
-  # Styles + Themes
+  # Styles + Themes + Some nice basic fonts + 1000s of glyphs + all the colors
+  theme:  !include esphome-modular-lvgl-buttons/common/theme/index.yaml
   # theme:  !include esphome-modular-lvgl-buttons/common/theme/index_debug.yaml  # uncomment to enable debug outlines
+  # Popup system — code for popup pages lives here, but the popups themselves are defined in the UI section below
+  popup_system: !include esphome-modular-lvgl-buttons/ui/popup/popup_system.yaml
 
   # Hardware description file
   hardware: !include esphome-modular-lvgl-buttons/hardware/SDL-lvgl.yaml

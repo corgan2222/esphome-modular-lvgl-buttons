@@ -55,21 +55,20 @@ script:
 
 packages:
   # Generic configuration for ESP32 screens
-  # SDL has no Wi-Fi
+  # Include Wi-Fi support
   wifi: !include esphome-modular-lvgl-buttons/common/wifi.yaml
   # Enable OTA updates with a status screen
   ota_screen: !include esphome-modular-lvgl-buttons/common/ota.yaml
-  # All the colors
-  theme:  !include esphome-modular-lvgl-buttons/common/theme/index.yaml
-  # Some nice basic fonts
-  # 1000s of glyphs
-  # Some basic sensors
+   # Some basic sensors
   sensors: !include esphome-modular-lvgl-buttons/common/sensors_base.yaml
-  # Styles + Themes
+  # Styles + Themes + Some nice basic fonts + 1000s of glyphs + all the colors
+  theme:  !include esphome-modular-lvgl-buttons/common/theme/index.yaml
   # Use this theme for debugging
   # theme:  !include esphome-modular-lvgl-buttons/common/theme/index_debug.yaml  # uncomment to enable debug outlines
   # Include if your touch screen has a backlight. Also sets the time from HA
   backlight: !include esphome-modular-lvgl-buttons/common/backlight_time.yaml
+  # Popup system — code for popup pages lives here, but the popups themselves are defined in the UI section below
+  popup_system: !include esphome-modular-lvgl-buttons/ui/popup/popup_system.yaml
 
   # Hardware description file for 10.1" display
   hardware: !include

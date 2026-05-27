@@ -1,214 +1,765 @@
 ---
-# Remote light button — full RGB / CCT / brightness UI for Home Assistant lights
-# Capabilities are detected at runtime from the HA supported_color_modes attribute.
+# Home-Assistant light tile + color popup.
+# Subscribes to a HA light entity; toggles & adjusts via homeassistant.action.
 #
-# vars:
-#   uid:          unique identifier
-#   entity_id:    HA light entity (e.g. "light.kitchen")
-#   row:          grid row position
-#   column:       grid column position
-#   text:         label text
-#   icon:         icon glyph (optional, default: $mdi_lightbulb)
-#   row_span:     (default: 1)
-#   column_span:  (default: 1)
-#   page_id:             parent page (default: main_page)
-#   auto_return_minutes: detail-page inactivity timeout in minutes
-#                        (default: 2, set to 0 to disable)
+# Tile: icon + label + brightness slider. Short-click toggles the light;
+# long-press opens a per-instance color popup with rainbow hue + kelvin
+# rings (reuses the SVG assets defined in ui/popup/color_picker_popup.yaml).
+#
+# Requires:
+#   - pages/popups.yaml         (shared scrim + base popup_close script)
+#   - ui/popup/color_picker_popup.yaml (defines hue_ring_img + kelvin_ring_img)
+#
+# Vars:
+#   uid:         unique id (e.g. button_6)
+#   entity_id:   HA light entity (e.g. light.kitchen)
+#   row, column: grid placement
+#   text:        button label
+#   icon:        glyph (default $mdi_lightbulb)
+#   row_span, column_span: (default 1)
+#   page_id:     parent page (default main_page)
 
-packages:
-  ${uid}_detail: !include
-    file: detail.yaml
-    vars:
-      uid: ${uid}
-      text: ${text}
-      page_id: ${page_id | default("main_page")}
-      auto_return_minutes: ${auto_return_minutes | default(2)}
+globals:
+  - id: ${uid}_is_on
+    type: bool
+    initial_value: 'false'
+  - id: ${uid}_current_hue
+    type: float
+    initial_value: '0.0'
+  - id: ${uid}_current_saturation
+    type: float
+    initial_value: '0.0'
+  - id: ${uid}_current_color_temp
+    type: float
+    initial_value: '3000.0'
+  - id: ${uid}_current_brightness
+    type: float
+    initial_value: '1.0'                 # 0.0–1.0
+  - id: ${uid}_supports_rgb
+    type: bool
+    initial_value: 'false'
+  - id: ${uid}_supports_color_temp
+    type: bool
+    initial_value: 'false'
+  - id: ${uid}_supports_brightness
+    type: bool
+    initial_value: 'false'
+  # false = HSV ring, true = Kelvin ring
+  - id: ${uid}_mode_kelvin
+    type: bool
+    initial_value: 'false'
+  # Suppress HA→UI sync echoes so we don't re-send values we just received
+  - id: ${uid}_suspend_send
+    type: bool
+    initial_value: 'false'
+  # True when hs_color is currently providing valid hue/sat. Used to gate the
+  # rgb_color fallback handler so it only fires on rgb*-mode lights (WLED).
+  - id: ${uid}_hs_color_valid
+    type: bool
+    initial_value: 'false'
+  # Set by the rgb_color handler after a successful sscanf parse.
+  - id: ${uid}_rgb_color_applied
+    type: bool
+    initial_value: 'false'
+
+# ── Tile + popup ──────────────────────────────────────────────────────────────
 
 lvgl:
   pages:
-  - id: !extend ${page_id | default("main_page")}
-    widgets:
-    - container:
-        id: ${uid}_tile
-        grid_cell_row_pos: ${row}
-        grid_cell_column_pos: ${column}
-        grid_cell_row_span: ${row_span | default(1)}
-        grid_cell_column_span: ${column_span | default(1)}
-        grid_cell_x_align: stretch
-        grid_cell_y_align: stretch
-        widgets:
-        - button:
-            id: button_${uid}
+    - id: !extend ${page_id | default("main_page")}
+      widgets:
+        - container:
+            id: ${uid}_tile
+            grid_cell_row_pos: ${row}
+            grid_cell_column_pos: ${column}
+            grid_cell_row_span: ${row_span | default(1)}
+            grid_cell_column_span: ${column_span | default(1)}
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
             widgets:
+              - button:
+                  id: button_${uid}
+                  widgets:
+                    - label:
+                        id: icon_${uid}
+                        text_font: $icon_font
+                        align: top_left
+                        text: ${icon}
+                    - label:
+                        id: label_${uid}
+                        align: bottom_left
+                        long_mode: wrap
+                        width: 100%
+                        text: ${text}
+                    - slider:
+                        id: slider_${uid}
+                        align: top_right
+                        x: -5
+                        y: 10
+                        width: 30%
+                        height: 75%
+                        min_value: 0
+                        max_value: 255
+                        radius: 10
+                        knob:
+                          pad_top: -5
+                          pad_bottom: -5
+                          bg_color: $label_on_color
+                        indicator:
+                          radius: 0
+                          bg_color: $label_off_color
+                        on_release:
+                          - globals.set:
+                              id: ${uid}_current_brightness
+                              value: !lambda return x / 255.0f;
+                          - script.execute: ${uid}_light_set_brightness
+                  on_short_click:
+                    - script.execute: ${uid}_light_toggle
+                  on_long_press:
+                    - script.execute: ${uid}_show_popup
+
+  # Per-instance popup, sibling to the shared scrim in top_layer.
+  top_layer:
+    widgets:
+      - obj:
+          id: ${uid}_popup
+          hidden: true
+          align: CENTER
+          width: 95%
+          height: 95%
+          radius: 12
+          bg_color: $bg_color
+          bg_opa: COVER
+          border_width: 2
+          border_color: gray
+          pad_all: 12
+          clickable: true
+          widgets:
             - label:
-                id: icon_${uid}
-                text_font: $icon_font
                 align: top_left
-                text: ${icon}
-            - label:
-                id: label_${uid}
-                align: bottom_left
-                long_mode: wrap
-                width: 100%
+                x: 4
+                y: 4
+                text_font: nunito_20
+                text_color: white
                 text: ${text}
+
+            - button:
+                align: bottom_left
+                x: 4
+                y: -10
+                radius: 15
+                width: 100
+                height: 50
+                widgets:
+                  - label:
+                      id: ${uid}_mode_toggle_label
+                      align: center
+                      text_font: $icon_font
+                      text_color: white
+                      text: $mdi_white_balance_sunny
+                on_short_click:
+                  - script.execute: ${uid}_mode_toggle
+
+            # Vertical brightness slider on the left side of the popup
             - slider:
-                id: slider_${uid}
-                align: top_right
-                x: -5
-                y: 10
-                width: 30%
-                height: 75%
+                id: ${uid}_popup_brightness
+                align: left_mid
+                x: 8
+                y: -30
+                width: 30
+                height: 240
                 min_value: 0
                 max_value: 255
-                radius: 10
-                knob:
-                  pad_top: -5
-                  pad_bottom: -5
-                  bg_color: $label_on_color
+                value: 255
                 indicator:
-                  radius: 0
-                  bg_color: $label_off_color
+                  bg_color: ep_orange
+                knob:
+                  bg_color: white
+                  border_width: 2
+                  border_color: gray
                 on_release:
-                - globals.set:
-                    id: ${uid}_current_brightness
-                    value: !lambda return x / 255.0f;
-                - script.execute: ${uid}_light_set_brightness
-            on_short_click:
-              then:
-              - script.execute: ${uid}_light_toggle
-            on_long_press:
-              then:
-              - lvgl.page.show:
-                  id: ${uid}_light_page
-                  animation: MOVE_LEFT
-                  time: 300ms
-              - script.execute: ${uid}_reset_page_timeout
+                  - globals.set:
+                      id: ${uid}_current_brightness
+                      value: !lambda return x / 255.0f;
+                  - lvgl.slider.update:
+                      id: slider_${uid}
+                      value: !lambda 'return (int) x;'
+                  - script.execute: ${uid}_light_set_brightness
 
-# ── HA state sensors ──────────────────────────────────────────────────────────
+            # Vertical saturation slider next to brightness
+            - slider:
+                id: ${uid}_sat_slider
+                align: left_mid
+                x: 68
+                y: -30
+                width: 30
+                height: 240
+                min_value: 0
+                max_value: 100
+                value: 100
+                indicator:
+                  bg_color: steel_blue
+                knob:
+                  bg_color: white
+                  border_width: 2
+                  border_color: steel_blue
+                on_value:
+                  - lambda: id(${uid}_current_saturation) = (float) x;
+                  - script.execute: ${uid}_picker_update
+                on_release:
+                  - script.execute: ${uid}_light_apply_hs
+
+            # Slider identifying icons
+            - label:
+                id: ${uid}_brightness_icon
+                align: bottom_left
+                x: 4
+                y: -65
+                text_font: $icon_font
+                text_color: ep_orange
+                text: $mdi_brightness_6
+            - label:
+                id: ${uid}_sat_icon
+                align: bottom_left
+                x: 64
+                y: -65
+                text_font: $icon_font
+                text_color: steel_blue
+                text: $mdi_circle_opacity
+
+            # ---- HSV mode widgets ----
+            - image:
+                id: ${uid}_hue_ring_image
+                src: hue_ring_img
+                align: center
+                x: 60
+                y: -10
+
+            - arc:
+                id: ${uid}_hue_arc
+                align: center
+                x: 60
+                y: -10
+                width: 275
+                height: 275
+                pad_all: 0
+                adjustable: true
+                adv_hittest: true
+                min_value: 0
+                max_value: 360
+                value: 0
+                start_angle: 0
+                end_angle: 360
+                rotation: 270
+                arc_width: 36
+                arc_opa: transp
+                indicator:
+                  arc_opa: transp
+                knob:
+                  pad_all: 16
+                  bg_opa: transp
+                  border_width: 4
+                  border_color: gray
+                  shadow_opa: transp
+                on_value:
+                  - lambda: id(${uid}_current_hue) = (float) x;
+                  - script.execute: ${uid}_picker_update
+                on_release:
+                  - script.execute: ${uid}_light_apply_hs
+
+            # ---- Kelvin mode widgets (hidden by default) ----
+            - image:
+                id: ${uid}_kelvin_ring_image
+                hidden: true
+                src: kelvin_ring_img
+                align: center
+                x: 60
+                y: -10
+
+            - arc:
+                id: ${uid}_kelvin_arc
+                hidden: true
+                align: center
+                x: 60
+                y: -10
+                width: 281
+                height: 281
+                pad_all: 0
+                adjustable: true
+                adv_hittest: true
+                min_value: 1000
+                max_value: 8000
+                value: 3000
+                start_angle: 0
+                end_angle: 360
+                rotation: 270
+                arc_width: 36
+                arc_opa: transp
+                indicator:
+                  arc_opa: transp
+                knob:
+                  pad_all: 16
+                  bg_opa: transp
+                  border_width: 4
+                  border_color: gray
+                  shadow_opa: transp
+                on_value:
+                  - lambda: id(${uid}_current_color_temp) = (float) x;
+                  - script.execute: ${uid}_picker_update
+                on_release:
+                  - script.execute: ${uid}_light_apply_color_temp
+
+            # ---- Shared center / footer ----
+            - obj:
+                id: ${uid}_bulb_container
+                align: center
+                x: 60
+                y: -10
+                width: 84
+                height: 84
+                radius: 42
+                bg_opa: TRANSP
+                border_width: 0
+                pad_all: 0
+                shadow_color: 0xFF0000
+                shadow_opa: COVER
+                shadow_width: 0
+                shadow_spread: 0
+                on_short_click:
+                  - script.execute: ${uid}_light_toggle
+                widgets:
+                  - label:
+                      id: ${uid}_bulb_icon
+                      align: center
+                      text_font: $icon_font
+                      text_color: 0xFF0000
+                      text: $mdi_lightbulb
+
+            - label:
+                id: ${uid}_value_label
+                align: top_right
+                x: -4
+                y: 4
+                text_font: nunito_20
+                text_color: white
+                text: "H:0  S:100"
+
+            - button:
+                align: bottom_right
+                x: -4
+                y: -10
+                radius: 15
+                width: 100
+                height: 50
+                widgets:
+                  - label:
+                      text_color: white
+                      align: center
+                      text: "Close"
+                on_short_click:
+                  - script.execute: popup_close
 
 binary_sensor:
-- id: ${uid}_ha_state
-  platform: homeassistant
-  entity_id: ${entity_id}
-  trigger_on_initial_state: true
-  on_state:
-  - lambda: id(${uid}_is_on) = x;
-  - script.execute: ${uid}_sync_state
-  - script.execute: ${uid}_update_bulb_color
+  - id: ${uid}_ha_state
+    platform: homeassistant
+    entity_id: ${entity_id}
+    trigger_on_initial_state: true
+    on_state:
+      - lambda: id(${uid}_is_on) = x;
+      - script.execute: ${uid}_update_bulb_color
 
 text_sensor:
-# Brightness (text sensor avoids NaN on lights that don't report it)
-- id: ${uid}_ha_brightness
-  platform: homeassistant
-  entity_id: ${entity_id}
-  attribute: brightness
-  internal: true
-  on_value:
-  - if:
-      condition:
-        lambda: return !x.empty() && x != "None";
-      then:
-      - lambda: id(${uid}_current_brightness) = atof(x.c_str()) / 255.0f;
-      - lvgl.slider.update:
-          id: slider_${uid}
-          value: !lambda return id(${uid}_current_brightness) * 255;
-      - lvgl.slider.update:
-          id: ${uid}_brightness_slider
-          value: !lambda return id(${uid}_current_brightness) * 255;
-      - script.execute: ${uid}_update_bulb_color
+  - id: ${uid}_ha_brightness
+    platform: homeassistant
+    entity_id: ${entity_id}
+    attribute: brightness
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: 'return !x.empty() && x != "None";'
+          then:
+            - lambda: id(${uid}_current_brightness) = atof(x.c_str()) / 255.0f;
+            - lvgl.slider.update:
+                id: slider_${uid}
+                value: !lambda return (int)(id(${uid}_current_brightness) * 255.0f);
+            - lvgl.slider.update:
+                id: ${uid}_popup_brightness
+                value: !lambda return (int)(id(${uid}_current_brightness) * 255.0f);
+            - script.execute: ${uid}_update_bulb_color
 
-# Color temperature in Kelvin
-- id: ${uid}_ha_color_temp
-  platform: homeassistant
-  entity_id: ${entity_id}
-  attribute: color_temp_kelvin
-  internal: true
-  on_value:
-  - if:
-      condition:
-        lambda: return !x.empty() && x != "None";
-      then:
-      - lambda: id(${uid}_current_color_temp) = atof(x.c_str());
-      - lvgl.arc.update:
-          id: ${uid}_arc_color_temp
-          value: !lambda return (int)id(${uid}_current_color_temp);
-      - script.execute: ${uid}_update_bulb_color
+  - id: ${uid}_ha_color_temp
+    platform: homeassistant
+    entity_id: ${entity_id}
+    attribute: color_temp_kelvin
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: 'return !x.empty() && x != "None";'
+          then:
+            - lambda: id(${uid}_current_color_temp) = atof(x.c_str());
+            - globals.set:
+                id: ${uid}_suspend_send
+                value: 'true'
+            - lvgl.arc.update:
+                id: ${uid}_kelvin_arc
+                value: !lambda return (int) id(${uid}_current_color_temp);
+            - globals.set:
+                id: ${uid}_suspend_send
+                value: 'false'
+            - script.execute: ${uid}_update_bulb_color
 
-# HS color — HA returns a tuple string like "(120.5, 80.0)"
-- id: ${uid}_ha_hs_color
-  platform: homeassistant
-  entity_id: ${entity_id}
-  attribute: hs_color
-  internal: true
-  on_value:
-  - if:
-      condition:
-        lambda: return !x.empty() && x != "None";
-      then:
+  # HS color — HA returns "(hue, sat)" as a tuple string
+  - id: ${uid}_ha_hs_color
+    platform: homeassistant
+    entity_id: ${entity_id}
+    attribute: hs_color
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: 'return !x.empty() && x != "None";'
+          then:
+            - lambda: |-
+                std::string s = x;
+                size_t open  = s.find('(');
+                size_t comma = s.find(',');
+                size_t close = s.find(')');
+                size_t hstart = (open  != std::string::npos) ? open  + 1 : 0;
+                size_t cstart = (comma != std::string::npos) ? comma + 1 : 0;
+                if (comma != std::string::npos) {
+                  id(${uid}_current_hue) =
+                      atof(s.substr(hstart, comma - hstart).c_str());
+                  size_t clen = (close != std::string::npos)
+                                  ? (close - cstart)
+                                  : std::string::npos;
+                  id(${uid}_current_saturation) =
+                      atof(s.substr(cstart, clen).c_str());
+                  id(${uid}_hs_color_valid) = true;
+                }
+            - globals.set:
+                id: ${uid}_suspend_send
+                value: 'true'
+            - lvgl.arc.update:
+                id: ${uid}_hue_arc
+                value: !lambda return (int) id(${uid}_current_hue);
+            - lvgl.slider.update:
+                id: ${uid}_sat_slider
+                value: !lambda return (int) id(${uid}_current_saturation);
+            - globals.set:
+                id: ${uid}_suspend_send
+                value: 'false'
+            - script.execute: ${uid}_update_bulb_color
+          else:
+            # hs_color is None — defer to rgb_color handler.
+            - globals.set:
+                id: ${uid}_hs_color_valid
+                value: 'false'
+
+  # RGB color — HA returns a tuple string like "(255, 128, 0)".
+  # HA only populates hs_color when the active color_mode is `hs`; lights
+  # running in rgb/rgbw/rgbww (e.g. WLED) report hs_color: None. This sensor
+  # fills the gap by deriving hue/sat from rgb_color. The hs_color sensor
+  # above remains authoritative for hs-native lights — this only runs when
+  # hs_color is absent (the global is reset to a sentinel by hs_color when it
+  # successfully parses; we check it here).
+  - id: ${uid}_ha_rgb_color
+    platform: homeassistant
+    entity_id: ${entity_id}
+    attribute: rgb_color
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: |-
+              // Only apply if hs_color isn't carrying real data right now.
+              return !x.empty() && x != "None" && !id(${uid}_hs_color_valid);
+          then:
+            - lambda: |-
+                int r = 0, g = 0, b = 0;
+                // Tolerate both "(r, g, b)" and "r, g, b" formats.
+                int parsed = sscanf(x.c_str(), " ( %d , %d , %d )", &r, &g, &b);
+                if (parsed != 3) parsed = sscanf(x.c_str(), " %d , %d , %d", &r, &g, &b);
+                if (parsed == 3) {
+                  float rf = r / 255.0f, gf = g / 255.0f, bf = b / 255.0f;
+                  float mx = std::max({rf, gf, bf});
+                  float mn = std::min({rf, gf, bf});
+                  float d = mx - mn;
+                  float h = 0.0f;
+                  float s = (mx == 0.0f) ? 0.0f : (d / mx) * 100.0f;
+                  if (d > 0.0001f) {
+                    if      (mx == rf) h = 60.0f * fmod(((gf - bf) / d), 6.0f);
+                    else if (mx == gf) h = 60.0f * (((bf - rf) / d) + 2.0f);
+                    else               h = 60.0f * (((rf - gf) / d) + 4.0f);
+                    if (h < 0) h += 360.0f;
+                  }
+                  id(${uid}_current_hue) = h;
+                  id(${uid}_current_saturation) = s;
+                  id(${uid}_rgb_color_applied) = true;
+                } else {
+                  id(${uid}_rgb_color_applied) = false;
+                }
+            - if:
+                condition:
+                  lambda: 'return id(${uid}_rgb_color_applied);'
+                then:
+                  - globals.set:
+                      id: ${uid}_suspend_send
+                      value: 'true'
+                  - lvgl.arc.update:
+                      id: ${uid}_hue_arc
+                      value: !lambda return (int) id(${uid}_current_hue);
+                  - lvgl.slider.update:
+                      id: ${uid}_sat_slider
+                      value: !lambda return (int) id(${uid}_current_saturation);
+                  - globals.set:
+                      id: ${uid}_suspend_send
+                      value: 'false'
+                  - script.execute: ${uid}_update_bulb_color
+
+  - id: ${uid}_ha_supported_modes
+    platform: homeassistant
+    entity_id: ${entity_id}
+    attribute: supported_color_modes
+    internal: true
+    on_value:
       - lambda: |-
-          size_t comma = x.find(',');
-          if (comma != std::string::npos) {
-            id(${uid}_current_hue) = atof(x.substr(0, comma).c_str());
-            id(${uid}_current_saturation) = atof(x.substr(comma + 1).c_str());
-          }
-      - lvgl.arc.update:
-          id: ${uid}_arc_hue
-          value: !lambda return (int)id(${uid}_current_hue);
-      - lvgl.slider.update:
-          id: ${uid}_saturation_slider
-          value: !lambda return (int)id(${uid}_current_saturation);
-      - script.execute: ${uid}_update_bulb_color
+          // HA supported_color_modes values:
+          //   onoff, brightness, color_temp, hs, rgb, rgbw, rgbww, xy, white
+          bool has_rgbww = x.find("rgbww") != std::string::npos;
+          bool has_rgbw  = x.find("rgbw")  != std::string::npos;
+          bool has_rgb   = x.find("rgb")   != std::string::npos;  // matches rgb/rgbw/rgbww
+          bool has_hs    = x.find("hs")    != std::string::npos;
+          bool has_xy    = x.find("xy")    != std::string::npos;
+          bool has_ct    = x.find("color_temp") != std::string::npos;
+          bool has_white = (x.find("\"white\"") != std::string::npos) ||
+                           (x.find("'white'")  != std::string::npos);
+          bool has_br    = x.find("brightness") != std::string::npos;
 
-# Supported color modes → detect capabilities and update UI visibility
-- id: ${uid}_ha_supported_modes
-  platform: homeassistant
-  entity_id: ${entity_id}
-  attribute: supported_color_modes
-  internal: true
-  on_value:
-  - lambda: |-
-      id(${uid}_supports_color_temp) = x.find("color_temp") != std::string::npos;
-      id(${uid}_supports_rgb)        = x.find("rgb") != std::string::npos ||
-                                       x.find("hs")  != std::string::npos;
-      id(${uid}_supports_brightness) = id(${uid}_supports_rgb) ||
-                                       id(${uid}_supports_color_temp) ||
-                                       x.find("brightness") != std::string::npos;
-  - script.execute: ${uid}_update_visibility
+          id(${uid}_supports_color_temp) = has_ct;
+          id(${uid}_supports_rgb)        = has_rgb || has_hs || has_xy;
+          id(${uid}_supports_brightness) = id(${uid}_supports_rgb) ||
+                                           id(${uid}_supports_color_temp) ||
+                                           has_br || has_white;
+
+          ESP_LOGI("light.caps",
+                   "[%s] supported_color_modes=%s "
+                   "-> rgb=%d ct=%d brightness=%d "
+                   "(rgbww=%d rgbw=%d hs=%d xy=%d white=%d br_only=%d)",
+                   "${entity_id}", x.c_str(),
+                   id(${uid}_supports_rgb),
+                   id(${uid}_supports_color_temp),
+                   id(${uid}_supports_brightness),
+                   has_rgbww, has_rgbw, has_hs, has_xy, has_white, has_br);
+
+
+# ── Scripts ───────────────────────────────────────────────────────────────────
 
 script:
-# ── Abstract action scripts — REMOTE implementation ───────────────────────────
+  # Hook into the shared popup_close so the scrim/Close also hides ours.
+  - id: !extend popup_close
+    then:
+      - lvgl.widget.hide: ${uid}_popup
 
-- id: ${uid}_light_toggle
-  then:
-  - homeassistant.action:
-      action: homeassistant.toggle
-      data:
-        entity_id: ${entity_id}
+  # Show this instance's popup (also bring up the scrim).
+  - id: ${uid}_show_popup
+    then:
+      # Default to Kelvin mode for CT-only lights; HSV otherwise.
+      - lambda: |-
+          id(${uid}_mode_kelvin) =
+            id(${uid}_supports_color_temp) && !id(${uid}_supports_rgb);
+      - if:
+          condition:
+            lambda: 'return id(${uid}_mode_kelvin);'
+          then:
+            - lvgl.widget.hide: ${uid}_hue_ring_image
+            - lvgl.widget.hide: ${uid}_hue_arc
+            - lvgl.widget.hide: ${uid}_sat_slider
+            - lvgl.widget.hide: ${uid}_sat_icon
+            - lvgl.widget.show: ${uid}_kelvin_ring_image
+            - lvgl.widget.show: ${uid}_kelvin_arc
+            - lvgl.label.update:
+                id: ${uid}_mode_toggle_label
+                text: $mdi_eyedropper
+          else:
+            - lvgl.widget.show: ${uid}_hue_ring_image
+            - lvgl.widget.show: ${uid}_hue_arc
+            - lvgl.widget.show: ${uid}_sat_slider
+            - lvgl.widget.show: ${uid}_sat_icon
+            - lvgl.widget.hide: ${uid}_kelvin_ring_image
+            - lvgl.widget.hide: ${uid}_kelvin_arc
+            - lvgl.label.update:
+                id: ${uid}_mode_toggle_label
+                text: $mdi_white_balance_sunny
+      - lvgl.widget.show: popup_scrim
+      - lvgl.widget.show: ${uid}_popup
+      - script.execute: ${uid}_picker_update
 
-- id: ${uid}_light_set_brightness
-  then:
-  - homeassistant.action:
-      action: light.turn_on
-      data:
-        entity_id: ${entity_id}
-        brightness: !lambda return (int)(id(${uid}_current_brightness) * 255.0f);
+  # Toggle HSV ↔ Kelvin display in the popup
+  - id: ${uid}_mode_toggle
+    then:
+      - lambda: 'id(${uid}_mode_kelvin) = !id(${uid}_mode_kelvin);'
+      - if:
+          condition:
+            lambda: 'return id(${uid}_mode_kelvin);'
+          then:
+            - lvgl.widget.hide: ${uid}_hue_ring_image
+            - lvgl.widget.hide: ${uid}_hue_arc
+            - lvgl.widget.hide: ${uid}_sat_slider
+            - lvgl.widget.hide: ${uid}_sat_icon
+            - lvgl.widget.show: ${uid}_kelvin_ring_image
+            - lvgl.widget.show: ${uid}_kelvin_arc
+            - lvgl.label.update:
+                id: ${uid}_mode_toggle_label
+                text: $mdi_eyedropper
+          else:
+            - lvgl.widget.show: ${uid}_hue_ring_image
+            - lvgl.widget.show: ${uid}_hue_arc
+            - lvgl.widget.show: ${uid}_sat_slider
+            - lvgl.widget.show: ${uid}_sat_icon
+            - lvgl.widget.hide: ${uid}_kelvin_ring_image
+            - lvgl.widget.hide: ${uid}_kelvin_arc
+            - lvgl.label.update:
+                id: ${uid}_mode_toggle_label
+                text: $mdi_white_balance_sunny
+      - script.execute: ${uid}_picker_update
 
-- id: ${uid}_light_apply_hs
-  then:
-  - homeassistant.action:
-      action: light.turn_on
-      data:
-        entity_id: ${entity_id}
-      data_template:
-        hs_color: "{{ (hue|float, sat|float)|list }}"
-      variables:
-        hue: !lambda return id(${uid}_current_hue);
-        sat: !lambda return id(${uid}_current_saturation);
+  # Refresh popup swatch + readout from the current globals (no HA traffic).
+  - id: ${uid}_picker_update
+    then:
+      - lambda: |-
+          lv_color_t c;
+          char buf[32];
+          if (id(${uid}_mode_kelvin)) {
+            float t = id(${uid}_current_color_temp) / 100.0f;
+            float r, g, b;
+            if (t <= 66.0f) {
+              r = 255.0f;
+              g = 99.4708025861f * logf(t) - 161.1195681661f;
+              b = (t <= 19.0f)
+                    ? 0.0f
+                    : 138.5177312231f * logf(t - 10.0f) - 305.0447927307f;
+            } else {
+              r = 329.698727446f * powf(t - 60.0f, -0.1332047592f);
+              g = 288.1221695283f * powf(t - 60.0f, -0.0755148492f);
+              b = 255.0f;
+            }
+            auto cl = [](float v) -> uint8_t {
+              return (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
+            };
+            c = lv_color_make(cl(r), cl(g), cl(b));
+            snprintf(buf, sizeof(buf), "%dK",
+                     (int) id(${uid}_current_color_temp));
+          } else {
+            uint16_t h = (uint16_t) id(${uid}_current_hue);
+            uint8_t  s = (uint8_t)  id(${uid}_current_saturation);
+            c = lv_color_hsv_to_rgb(h, s, 100);
+            snprintf(buf, sizeof(buf), "H:%u  S:%u", h, s);
+          }
+          lv_obj_set_style_text_color(id(${uid}_bulb_icon), c, LV_PART_MAIN);
+          lv_obj_set_style_shadow_color(id(${uid}_bulb_container), c, LV_PART_MAIN);
+          lv_label_set_text(id(${uid}_value_label), buf);
 
-- id: ${uid}_light_apply_color_temp
-  then:
-  - homeassistant.action:
-      action: light.turn_on
-      data:
-        entity_id: ${entity_id}
-        color_temp_kelvin: !lambda return (int)id(${uid}_current_color_temp);
+  # Recolor the tile icon to match bulb state.
+  - id: ${uid}_update_bulb_color
+    then:
+      - if:
+          condition:
+            lambda: 'return id(${uid}_is_on);'
+          then:
+            - lvgl.widget.update:
+                id: button_${uid}
+                bg_color: $button_on_color
+            - lvgl.widget.update:
+                id: label_${uid}
+                text_color: $label_on_color
+          else:
+            - lvgl.widget.update:
+                id: button_${uid}
+                bg_color: $button_off_color
+            - lvgl.widget.update:
+                id: label_${uid}
+                text_color: $label_off_color
+      - lambda: |-
+          lv_color_t tint;
+          if (!id(${uid}_is_on)) {
+            tint = lv_color_make(120, 120, 120);
+          } else if (id(${uid}_supports_rgb)) {
+            uint16_t h = (uint16_t) id(${uid}_current_hue);
+            uint8_t  s = (uint8_t)  id(${uid}_current_saturation);
+            tint = lv_color_hsv_to_rgb(h, s, 100);
+          } else if (id(${uid}_supports_color_temp)) {
+            float t = id(${uid}_current_color_temp) / 100.0f;
+            float r, g, b;
+            if (t <= 66.0f) {
+              r = 255.0f;
+              g = 99.4708025861f * logf(t) - 161.1195681661f;
+              b = (t <= 19.0f)
+                    ? 0.0f
+                    : 138.5177312231f * logf(t - 10.0f) - 305.0447927307f;
+            } else {
+              r = 329.698727446f * powf(t - 60.0f, -0.1332047592f);
+              g = 288.1221695283f * powf(t - 60.0f, -0.0755148492f);
+              b = 255.0f;
+            }
+            auto cl = [](float v) -> uint8_t {
+              return (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
+            };
+            tint = lv_color_make(cl(r), cl(g), cl(b));
+          } else {
+            tint = lv_color_make(255, 220, 100);  // plain warm white
+          }
+          lv_obj_set_style_text_color(id(icon_${uid}), tint, LV_PART_MAIN);
+          lv_obj_set_style_text_color(id(${uid}_bulb_icon), tint, LV_PART_MAIN);
+          lv_obj_set_style_shadow_color(id(${uid}_bulb_container), tint, LV_PART_MAIN);
+          int aura = id(${uid}_is_on)
+            ? (int)(id(${uid}_current_brightness) * 120.0f)
+            : 0;
+          lv_obj_set_style_shadow_width(id(${uid}_bulb_container), aura, LV_PART_MAIN);
+
+  - id: ${uid}_light_toggle
+    then:
+      - homeassistant.action:
+          action: light.toggle
+          data:
+            entity_id: ${entity_id}
+
+  - id: ${uid}_light_set_brightness
+    then:
+      - homeassistant.action:
+          action: light.turn_on
+          data:
+            entity_id: ${entity_id}
+            brightness: !lambda return (int)(id(${uid}_current_brightness) * 255.0f);
+      - script.execute: ${uid}_update_bulb_color
+
+  - id: ${uid}_light_apply_hs
+    then:
+      - if:
+          condition:
+            lambda: 'return id(${uid}_suspend_send);'
+          then: []
+          else:
+            - homeassistant.action:
+                action: light.turn_on
+                data:
+                  entity_id: ${entity_id}
+                data_template:
+                  hs_color: "{{ (hue|float, sat|float)|list }}"
+                variables:
+                  hue: !lambda return id(${uid}_current_hue);
+                  sat: !lambda return id(${uid}_current_saturation);
+
+  - id: ${uid}_light_apply_color_temp
+    then:
+      - if:
+          condition:
+            lambda: 'return id(${uid}_suspend_send);'
+          then: []
+          else:
+            - homeassistant.action:
+                action: light.turn_on
+                data:
+                  entity_id: ${entity_id}
+                  color_temp_kelvin: !lambda return (int) id(${uid}_current_color_temp);
