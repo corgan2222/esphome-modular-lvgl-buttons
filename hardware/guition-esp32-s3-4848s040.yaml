@@ -96,8 +96,15 @@ spi:
 
 display:
   - platform: mipi_rgb
-    id: my_display
     model: GUITION-4848S040
-    dimensions:
-      width: 480
-      height: 480
+    id: my_display
+    color_order: RGB
+    # 6 MHz pixel clock gives the bounce buffer more headroom during LVGL
+    # full-screen flushes (e.g. new artwork). 8 MHz still works but leaves
+    # less margin and produces brief tearing marks on heavy redraws.
+    pclk_frequency: 6MHz
+    update_interval: never
+    auto_clear_enabled: False
+    transform:
+      mirror_x: false
+      mirror_y: false
