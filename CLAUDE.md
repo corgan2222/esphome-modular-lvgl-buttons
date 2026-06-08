@@ -64,6 +64,12 @@ ui/
   button/
     local.yaml           ✅ implemented
     remote.yaml          ✅ implemented
+  sensor_button/
+    local.yaml           ✅ implemented
+    remote.yaml          ✅ implemented
+  media_player/
+    remote.yaml          ✅ implemented (remote-only)
+    detail.yaml          ✅ implemented
   climate/
     local.yaml           ✅ implemented
     remote.yaml          ✅ implemented

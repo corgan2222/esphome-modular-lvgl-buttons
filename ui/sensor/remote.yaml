@@ -10,7 +10,6 @@
 #   column:       grid column
 #   text:         sensor name shown on tile
 #   icon:         icon glyph
-#   bg_opa:       background opacity. 0%-100% or text TRANSP or COVER, for fully opaque (optional, default: COVER)
 #   unit:         unit string appended to value, e.g. "°C"  (optional, default "")
 #   precision:    decimal places                             (optional, default 1)
 #   row_span:     (default: 1)

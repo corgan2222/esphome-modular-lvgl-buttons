@@ -159,12 +159,13 @@ esphome run my-panel.yaml
 | [`binary_sensor`](ui/binary_sensor/README.md) | ✅ | ✅ | — | Read-only — door, motion, leak |
 | [`text_sensor`](ui/text_sensor/README.md) | ✅ | ✅ | — | Display any string state or attribute |
 | [`button`](ui/button/README.md) | ✅ | ✅ | — | Momentary press — works with `script.*`, `scene.*` too |
+| [`sensor_button`](ui/sensor_button/) | ✅ | ✅ | — | Sensor display + timed toggle action (e.g. temperature + heating boost) |
 | [`climate`](ui/climate/README.md) | ✅ | ✅ | ✅ | Arc setpoint, mode + fan + swing dropdowns, capability auto-detected |
 | `cover` | 🔜 | 🔜 | 🔜 | Blinds, shutters, garage doors |
 | `fan` | 🔜 | 🔜 | 🔜 | — |
 | `number` | 🔜 | 🔜 | 🔜 | Setpoints, PID targets |
 | `select` | 🔜 | 🔜 | 🔜 | Operating modes, option lists |
-| `media_player` | 🔜 | 🔜 | 🔜 | — |
+| [`media_player`](ui/media_player/README.md) | — | ✅ | ✅ | Remote-only; transport controls, volume, progress. Optional PIN lock |
 | `lock` | 🔜 | 🔜 | 🔜 | With PIN pad detail page |
 
 Click any type name in the table above for its full variable reference and usage examples.
