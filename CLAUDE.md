@@ -159,6 +159,99 @@ Never declared by the user — always detected at runtime:
 
 ---
 
+## Popup System (ui/popup/popup_system.yaml)
+
+All popups live in LVGL's `top_layer` (singleton overlay that floats above every page).
+A shared `popup_scrim` provides the dim backdrop and catches taps outside popups to close everything.
+
+### Opening a Popup
+
+```yaml
+- lvgl.widget.show: popup_scrim
+- lvgl.widget.show: popup_<name>
+- script.execute: popup_start_timeout
+```
+
+### Auto-Close Timeout
+
+Popups automatically close after a configurable timeout (default 120 seconds).
+Set in the top-level page substitutions:
+
+```yaml
+substitutions:
+  popup_timeout_seconds: '120'  # Change to desired seconds
+```
+
+The timeout is managed by:
+- `popup_start_timeout` — starts the delay and calls `popup_close` when expired
+- `popup_timeout_seconds` — global int (seconds), initialized from substitution
+
+When a user closes the popup manually (tap scrim, click button, etc.), the delay is cancelled automatically.
+
+---
+
+## Color Picker (common/color_picker.yaml)
+
+Reusable per-instance HSV/Kelvin color picker popup. Size: 480×480px (centered on screen).
+
+### Variables
+
+| Variable | Type | Description |
+|---|---|---|
+| `uid` | string | Instance identifier, must match the parent light tile |
+| `text` | string | Popup title (default "Color Picker") |
+| `mode` | string | `"rgb"` / `"kelvin"` / `"both"` (default "both") |
+
+### Public API (provided to parent)
+
+| Item | Type | Purpose |
+|---|---|---|
+| `${uid}_popup` | widget | The popup container (hidden by default) |
+| `${uid}_mode_kelvin` | global bool | false=HSV ring, true=Kelvin ring |
+| `${uid}_picker_update` | script | Refresh swatch + readout from globals |
+| `${uid}_picker_apply_mode` | script | Sync widget visibility from mode+global |
+| `${uid}_mode_toggle` | script | Flip HSV ↔ Kelvin + reapply |
+
+### Required from Host (light tile)
+
+Parent light file must define these for each picker instance:
+
+| Item | Type | Purpose |
+|---|---|---|
+| `${uid}_current_hue` | global float | 0–360 |
+| `${uid}_current_saturation` | global float | 0–100 |
+| `${uid}_current_color_temp` | global float | Kelvin |
+| `${uid}_current_brightness` | global float | 0.0–1.0 |
+| `${uid}_light_toggle` | script | Toggle on/off |
+| `${uid}_light_set_brightness` | script | Apply brightness |
+| `${uid}_light_apply_hs` | script | Apply HSV |
+| `${uid}_light_apply_color_temp` | script | Apply Kelvin |
+| `slider_${uid}` | widget | Tile-side brightness slider (synced when popup changes) |
+
+### Example Usage
+
+In a light tile file:
+
+```yaml
+packages:
+  color_picker_rgb:
+    file: esphome-modular-lvgl-buttons/common/color_picker.yaml
+    vars:
+      uid: my_light
+      text: "RGB Light"
+      mode: "rgb"
+```
+
+To open the picker:
+
+```yaml
+- lvgl.widget.show: popup_scrim
+- lvgl.widget.show: my_light_popup
+- script.execute: popup_start_timeout
+```
+
+---
+
 ## Rules for Implementing New Entity Types
 
 1. Create `ui/<type>/`
@@ -188,4 +281,4 @@ ESPHome uses Jinja2 but with **different delimiters** than standard Jinja. Getti
 - **One include per entity**: a device YAML needs only a single `!include`. All internal dependencies (detail page, globals, scripts) are wired via `packages:` inside the component files.
 - **Theme vars only**: use `$button_on_color`, `$button_off_color`, `$icon_on_color`, `$icon_off_color`, `$label_on_color`, `$label_off_color`, `$icon_font` — never hardcode colors or fonts in component files.
 - **Hardware agnostic**: component files must not hardcode pixel coordinates or assume a specific screen resolution. Layout must work across all supported displays (ranging from 320×240 to 800×1280). Use LVGL alignment properties (`align`, `grid_cell_*`, percentage-based widths/heights) instead of fixed x/y values wherever possible. The current development hardware is the Waveshare ESP32-S3-Touch-LCD-4 (480×480) but this is not a constraint.
-- **ESPHome 2025.1+** required.
+- **ESPHome 2026.5.0+** required.

@@ -1,6 +1,9 @@
 ---
 # Popup system — shared scrim, close script, and shared color-picker assets.
 #
+# Substitution variables (set in top-level page):
+#   popup_timeout_seconds - auto-close timeout in seconds (required, e.g., '120')
+#
 # Architecture
 # ------------
 # All popups live in LVGL's `top_layer` (a singleton container that floats
@@ -23,6 +26,19 @@
 #
 #   - lvgl.widget.show: popup_scrim
 #   - lvgl.widget.show: popup_<name>
+#   - script.execute: popup_start_timeout
+#
+# Auto-close timeout
+# ------------------
+# Popups can automatically close after a configurable timeout (default 120 seconds).
+# Set the substitution variable `popup_timeout_seconds` in the top-level page:
+#
+#   substitutions:
+#     popup_timeout_seconds: '120'
+#
+# Call `popup_start_timeout` when opening a popup to activate the timeout.
+# The timeout is automatically cancelled when `popup_close` is called (e.g., when
+# the user taps outside the popup or clicks a close button).
 #
 # Z-order note: widgets render in include order. This file must be included
 # BEFORE any popup-consuming file so the scrim renders below all popups.
@@ -30,6 +46,12 @@
 # Shared assets defined here:
 #   - hue_ring_img / kelvin_ring_img : SVG rings reused by per-instance light
 #     color popups (see ui/light/remote.yaml and ui/light/local.yaml).
+
+globals:
+  # Popup auto-close timeout in seconds (default 120 seconds)
+  - id: popup_timeout_seconds
+    type: int
+    initial_value: '${popup_timeout_seconds}'
 
 image:
   rgb565:
@@ -45,6 +67,12 @@ image:
         resize: 300x300
 
 script:
+  # Start popup auto-close timeout. Call this whenever a popup opens.
+  - id: popup_start_timeout
+    then:
+      - delay: !lambda 'return id(popup_timeout_seconds) * 1000;'
+      - script.execute: popup_close
+
   # Extended by each popup file to hide its own widget.
   - id: popup_close
     then:
