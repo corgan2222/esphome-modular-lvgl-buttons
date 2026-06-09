@@ -1,0 +1,50 @@
+---
+# Change page button (24h clock variant of time_button.yaml)
+# vars:
+#   uid:          unique identifier
+#   row:          grid row
+#   column:       grid column
+#   row_span:     (default: 1)
+#   column_span:  (default: 1)
+#   bg_opa:       background opacity. 0%-100% or text TRANSP or COVER, for fully opaque (optional, default: COVER)
+#   click_page:   page to go to on click (default: main_page)
+#   page_id:      parent page (default: main_page)
+
+# This section add a button to LVGL page main_page
+lvgl:
+  pages:
+    - id: !extend main_page
+      widgets:
+        - container:
+              id: ${uid}
+              grid_cell_row_pos: ${row}
+              grid_cell_column_pos: ${column}
+              grid_cell_row_span: ${row_span | default(1)}
+              grid_cell_column_span: ${column_span | default(1)}
+              grid_cell_x_align: stretch
+              grid_cell_y_align: stretch
+              # outline_width: 1
+              # outline_color: red
+              widgets:
+              - button:
+                  id: button_${uid}
+                  bg_opa: ${bg_opa | default("TRANSP")}
+                  widgets:
+                    - label:
+                        id: time_label
+                        styles: time_style
+                        text: '12:00'
+
+                  on_short_click:
+                      then:
+                        lvgl.page.show: ${click_page | default("main_page")}
+
+
+script:
+  - id: !extend time_update
+    then:
+      - lvgl.label.update:
+          id: time_label
+          text: !lambda |-
+            auto now = id(system_time).now();
+            return str_sprintf("%02d:%02d", now.hour, now.minute);
