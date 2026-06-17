@@ -27,7 +27,8 @@
 #   weekly_reset_entity  optional  HA sensor, ISO-8601 UTC timestamp of next reset
 #                                  (default sensor.SET_ME_weekly_reset_time)
 #   status_entity        optional  HA sensor, free text   (default sensor.SET_ME_status)
-#   clawd_creature_h     optional  height of the creature region (default "60%")
+#   clawd_creature_h     optional  height of the creature region (default "58%";
+#                                  58% + 38% stats + 4% top margin = 100%)
 #   clawd_stats_h        optional  height of the stats panel     (default "38%")
 #   clawd_stats_w        optional  width of the stats panel — sets the even
 #                                  left+right margin to the screen edges
@@ -40,9 +41,12 @@
 #                                  are vertically centred on their own page.
 #   clawd_margin_top     optional  gap between the top display edge and the
 #                                  creature — px ("16") or percent ("4%") of the
-#                                  page height; default "0". Applied as a `y`
-#                                  offset on the top-aligned creature region, so
-#                                  it scales dynamically when given a percent.
+#                                  page height; default "4%" (the unified top
+#                                  inset, matching the ~6%/side horizontal inset
+#                                  so every display has consistent breathing
+#                                  room). Applied as a `y` offset on the
+#                                  top-aligned creature region, so it scales
+#                                  dynamically when given a percent.
 #   clawd_bar_low        optional  bar fill colour  <50%  (default "0x43A047" green)
 #   clawd_bar_mid        optional  bar fill colour 50-80% (default "0xFFB300" amber)
 #   clawd_bar_high       optional  bar fill colour >=80%  (default "0xE53935" red)
@@ -73,11 +77,13 @@ substitutions:
   weekly_pct_entity:    ${weekly_pct_entity    | default("sensor.SET_ME_week_usage")}
   weekly_reset_entity:  ${weekly_reset_entity  | default("sensor.SET_ME_weekly_reset_time")}
   status_entity:        ${status_entity        | default("sensor.SET_ME_status")}
-  clawd_creature_h:     ${clawd_creature_h     | default("60%")}
+  clawd_creature_h:     ${clawd_creature_h     | default("58%")}
   clawd_stats_h:        ${clawd_stats_h        | default("38%")}
   clawd_stats_w:        ${clawd_stats_w        | default("88%")}
   clawd_stats_align:    ${clawd_stats_align    | default("BOTTOM_MID")}
-  clawd_margin_top:     ${clawd_margin_top     | default("0")}
+  # Unified 4% top inset (≈ the 6%/side horizontal inset) so every display has
+  # consistent breathing room: 4% margin + 58% creature + 38% stats = 100%.
+  clawd_margin_top:     ${clawd_margin_top     | default("4%")}
   clawd_bar_low:        ${clawd_bar_low        | default("0x43A047")}
   clawd_bar_mid:        ${clawd_bar_mid        | default("0xFFB300")}
   clawd_bar_high:       ${clawd_bar_high       | default("0xE53935")}

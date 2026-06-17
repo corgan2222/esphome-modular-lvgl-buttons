@@ -78,9 +78,9 @@ packages:
     vars:
       uid: clawd
       # 320x240 is short: give the stats panel half the screen so the two bars
-      # and their labels are not cramped under the creature, with a small top
-      # margin so the creature doesn't touch the edge.
-      clawd_margin_top: "2%"
+      # and their labels are not cramped under the creature. Same 4% top margin
+      # as every other display (4% + 46% creature + 50% stats = 100%).
+      clawd_margin_top: "4%"
       clawd_creature_h: "46%"
       clawd_stats_h: "50%"
 

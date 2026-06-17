@@ -61,7 +61,7 @@ packages:
     vars:
       uid: clawd
       # Mirror the Sunton 320x240 device overrides.
-      clawd_margin_top: "2%"
+      clawd_margin_top: "4%"
       clawd_creature_h: "46%"
       clawd_stats_h: "50%"
 
