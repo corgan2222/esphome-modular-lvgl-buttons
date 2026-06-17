@@ -1,19 +1,19 @@
 # esphome-modular-lvgl-buttons/ui/clawdmeter/anim_select.yaml
-# Animation picker for the Clawdmeter creature, as one grid tile.
+# Animation picker for the Clawdmeter creature — BACKEND ONLY (no on-display
+# widget). It exposes two HA entities and draws nothing on the touchscreen:
 #  * A template `select` (exposed to HA via `name:`) lets you force a specific
 #    animation or fall back to "Automatisch" (usage-driven auto mode).
-#  * An LVGL `dropdown` mirrors the select on the device so you can pick on the
-#    touchscreen too. The two stay in sync without feedback loops:
-#      - dropdown change  -> select.set_index -> engine + dropdown refresh
-#      - select change    -> engine + lvgl.dropdown.update (no LV event emitted)
 #  * A template `text_sensor` (also exposed) publishes the animation currently
 #    on screen, so HA always sees which clip is playing — including while in
 #    auto mode where the engine rotates clips on its own.
 #
+# The picker lives in the ESPHome dashboard / HA device page, NOT on the LVGL
+# display (the creature itself stays the only Clawdmeter thing drawn on screen).
+#
 # Option index 0 = "Automatisch" -> clawd_set_anim_mode(-1).
 # Option index N (1..13) -> clawd_set_anim_mode(N-1) i.e. that animation.
 # The 13 names below MUST stay in the same order as splash_anims[] so the
-# dropdown labels line up with the engine indices.
+# option indices line up with the engine indices.
 #
 # Requires ui/clawdmeter/engine.yaml to be included once in the same config.
 #
@@ -23,12 +23,6 @@
 #                          (default "Clawd Animation")
 #   current_name optional  HA entity name for the current-clip text sensor
 #                          (default "Clawd Current Animation")
-#   text         optional  tile label (default "Animation")
-#   row          required  grid row
-#   column       required  grid column
-#   row_span     optional  default 1
-#   column_span  optional  default 1
-#   page_id      optional  parent page (default main_page)
 
 select:
   - platform: template
@@ -55,12 +49,6 @@ select:
     on_value:
       then:
         - lambda: 'clawd_set_anim_mode((int) i - 1);'
-        # Mirror to the on-device dropdown. lvgl.dropdown.update uses
-        # lv_dropdown_set_selected(), which does NOT emit LV_EVENT_VALUE_CHANGED,
-        # so this does not re-trigger the dropdown's on_value -> no loop.
-        - lvgl.dropdown.update:
-            id: ${uid}_anim_dd
-            selected_index: !lambda 'return (int) i;'
 
 text_sensor:
   - platform: template
@@ -71,58 +59,3 @@ text_sensor:
     lambda: |-
       const char *n = clawd_current_anim_name();
       return std::string(n ? n : "");
-
-lvgl:
-  pages:
-    - id: !extend ${page_id | default("main_page")}
-      widgets:
-        - obj:
-            id: ${uid}_anim_cell
-            grid_cell_row_pos: ${row}
-            grid_cell_column_pos: ${column}
-            grid_cell_row_span: ${row_span | default(1)}
-            grid_cell_column_span: ${column_span | default(1)}
-            grid_cell_x_align: stretch
-            grid_cell_y_align: stretch
-            bg_opa: TRANSP
-            border_width: 0
-            pad_all: 4
-            layout:
-              type: flex
-              flex_flow: COLUMN
-              flex_align_main: CENTER
-              flex_align_cross: CENTER
-              pad_row: 4
-            widgets:
-              - label:
-                  id: ${uid}_anim_lbl
-                  text_font: $text_font
-                  text_color: $label_off_color
-                  text: ${text | default("Animation")}
-              - dropdown:
-                  id: ${uid}_anim_dd
-                  width: 100%
-                  selected_index: 0
-                  options:
-                    - "Automatisch"
-                    - "idle breathe"
-                    - "idle blink"
-                    - "idle look around"
-                    - "expression wink"
-                    - "expression surprise"
-                    - "expression sleep"
-                    - "dance bounce"
-                    - "dance sway"
-                    - "work coding"
-                    - "work think"
-                    - "dance bounce dj"
-                    - "dance sway dj"
-                    - "dance djmix"
-                  on_value:
-                    then:
-                      # User picked on the touchscreen. Push into the template
-                      # select; its on_value drives the engine and refreshes
-                      # this dropdown to the same index (a no-op redraw).
-                      - select.set_index:
-                          id: ${uid}_anim_select
-                          index: !lambda 'return (size_t) x;'

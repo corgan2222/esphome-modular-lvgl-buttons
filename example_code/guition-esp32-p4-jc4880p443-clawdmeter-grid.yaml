@@ -7,19 +7,22 @@
 #   ui/clawdmeter/engine.yaml      shared engine base — include EXACTLY ONCE
 #   ui/clawdmeter/creature.yaml    the animated creature canvas
 #   ui/clawdmeter/usage_bar.yaml   a usage % bar (used here for session + weekly)
-#   ui/clawdmeter/usage_rate.yaml  on-device burn rate (computed from raw usage %)
-#   ui/clawdmeter/time_to_100.yaml on-device "time to 100%" (computed on the ESP)
-#   ui/clawdmeter/anim_select.yaml animation picker (HA select + on-device dropdown)
+#   ui/clawdmeter/usage_bar.yaml         a usage % bar (session + weekly)
+#   ui/clawdmeter/usage_rate.yaml        on-device burn rate (from raw usage %)
+#   ui/clawdmeter/time_to_100.yaml       on-device "time to 100%" (on the ESP)
+#   ui/clawdmeter/session_reset_clock.yaml on-device session-reset wall-clock time
+#   ui/clawdmeter/anim_select.yaml       animation picker (HA select, backend-only)
 #
-# Burn rate (5m + 30m) and time-to-100% are COMPUTED ON THE ESP from the two raw
-# HA inputs (sensor.claude_usage_stefan_pro_session_usage / ..._session_reset_time)
-# and exposed as device entities visible in the ESPHome dashboard — NOT drawn on
-# the display. They are backend-only here. To also show one as a grid tile, add
+# Burn rate (5m + 30m), time-to-100%, the session-reset clock time and the
+# animation picker are all BACKEND device entities (visible in the ESPHome
+# dashboard / HA) — NOT drawn on the display. They are computed/derived on the
+# ESP from the two raw HA inputs (sensor.claude_usage_stefan_pro_session_usage /
+# ..._session_reset_time). To also show a stat as a grid tile, add
 # usage_rate_tile.yaml / time_to_100_tile.yaml (see those files' headers).
 #
 # Tested target: Guition ESP32-P4 JC4880P443 (480x800 panel, rotated 90 ->
 # 800x480 landscape). The page is a 4-row x 4-column grid: the creature fills
-# the left half, the stats/picker stack on the right.
+# the left half, the session + weekly usage bars stack on the right.
 
 substitutions:
   icon_font: mdi_icons_40
@@ -89,7 +92,7 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_bar.yaml
     vars:
       uid: clawd_sess
-      entity_id: "sensor.clawdmeter_session_pct"
+      entity_id: "sensor.claude_usage_stefan_pro_session_usage"
       text: "Session"
       row: 0
       column: 2
@@ -100,7 +103,7 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_bar.yaml
     vars:
       uid: clawd_week
-      entity_id: "sensor.clawdmeter_weekly_pct"
+      entity_id: "sensor.claude_usage_stefan_pro_week_usage"
       text: "Weekly"
       row: 1
       column: 2
@@ -131,14 +134,19 @@ packages:
       uid: clawd_ttl
       rate_id: clawd_burn30_rate
 
-  # Animation picker — HA select + on-device dropdown + current-clip text sensor.
+  # Absolute session-reset wall-clock time ("HH:MM"), derived on the ESP from
+  # the raw reset-time timestamp and the device timezone — backend device entity.
+  clawd_reset: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
+    vars:
+      uid: clawd_reset
+
+  # Animation picker — HA select + current-clip text sensor. BACKEND ONLY: it
+  # exposes the picker as device entities and draws nothing on the display.
   clawd_anim: !include
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/anim_select.yaml
     vars:
       uid: clawd_anim
-      row: 3
-      column: 2
-      column_span: 2
 
 lvgl:
   pages:
