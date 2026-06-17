@@ -22,8 +22,36 @@
 #   name           optional  entity name exposed to HA
 #                            (default "Clawd Session Reset Time")
 #   update_sec     optional  recompute cadence in seconds (default 30)
+#   time_id        optional  id of the time: component (default system_time)
+#   reset_in_name  optional  entity name for the minutes-until-reset sensor
+#                            (default "Clawd Session Reset In")
 
-sensor: []
+globals:
+  # The parsed reset instant as a UTC epoch, written by the clock lambda below
+  # once a valid timestamp arrives. The minutes-until-reset sensor reads it and
+  # subtracts the live clock, so it counts down without re-parsing every tick.
+  - id: ${uid}_reset_epoch
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+sensor:
+  # Minutes from now until the session resets ("Reset in xx m"). Backend entity;
+  # the stats panel renders it. 0 once the reset instant has passed.
+  - platform: template
+    id: ${uid}_reset_in_min
+    name: ${reset_in_name | default("Clawd Session Reset In")}
+    unit_of_measurement: "min"
+    accuracy_decimals: 0
+    icon: mdi:timer-sand
+    update_interval: ${update_sec | default(30)}s
+    lambda: |-
+      if (id(${uid}_reset_epoch) == 0) return {};
+      ESPTime n = id(${time_id | default("system_time")}).now();
+      if (!n.is_valid()) return {};
+      int mins = (id(${uid}_reset_epoch) - (int) n.timestamp) / 60;
+      if (mins < 0) mins = 0;
+      return (float) mins;
 
 text_sensor:
   - platform: homeassistant
@@ -76,6 +104,8 @@ text_sensor:
       unsigned doe = yoe * 365u + yoe / 4u - yoe / 100u + doy;
       long days = era * 146097L + (long) doe - 719468L;
       time_t epoch = (time_t) (days * 86400L + h * 3600 + mi * 60 + s - off_min * 60);
+      // remember it (UTC) so ${uid}_reset_in_min can count down against now()
+      id(${uid}_reset_epoch) = (int) epoch;
       // re-localize to the device timezone and emit HH:MM
       ESPTime t = ESPTime::from_epoch_local(epoch);
       char buf[8];

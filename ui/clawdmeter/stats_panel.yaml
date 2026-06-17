@@ -1,0 +1,343 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/stats_panel.yaml
+# The Clawdmeter stats panel — ONE grid tile (typically the right half next to
+# the creature) that stacks every usage read-out as labelled bars plus a burn
+# line, with a comfortable margin to the screen edge so nothing looks squeezed:
+#
+#   Session  54% - Reset in 12 m - 19:20      [#####-----]
+#   Weekly   16% - 09:00                       [##--------]
+#   Extra Usage: 77% - 15.5 Credits            [#######---]
+#   Time till 100% - 21m - 21:34               [#####-----]
+#   Burn  5m 12.0  ·  30m 9.2 %/h
+#
+# Rows whose source entity is unavailable are hidden so the panel reflows: the
+# Extra Usage row disappears entirely when the user has disabled extra usage in
+# Home Assistant (its sensor reports no state).
+#
+# It is the DISPLAY layer only. The time-related values are computed on the ESP
+# by the backend packages and read here BY ID, so this file stays decoupled:
+#   - session reset clock + "reset in" -> session_reset_clock.yaml (clawd_reset)
+#   - weekly reset clock               -> session_reset_clock.yaml (clawd_wreset)
+#   - "100% at" ETA clock              -> time_to_100.yaml          (clawd_ttl)
+#   - 5m / 30m burn rate               -> usage_rate.yaml x2
+# The four percentages + the credits are pulled straight from Home Assistant.
+#
+# Requires those backend packages to be included in the same config (the grid
+# example wires them up). A periodic interval repaints all bars + labels, so the
+# panel needs no on_value plumbing and tolerates each source updating on its own
+# cadence. Does NOT require engine.yaml.
+#
+# vars:
+#   uid                required  namespace prefix
+#   row / column       required  grid placement
+#   row_span           optional  default 4
+#   column_span        optional  default 2
+#   page_id            optional  parent page (default main_page)
+#   refresh_sec        optional  repaint cadence in seconds (default 3)
+#   stat_font          optional  label font, used by every row incl. the burn
+#                                 line (default nunito_18)
+#   session_entity     optional  HA session %     (default ...session_usage)
+#   weekly_entity      optional  HA weekly %       (default ...week_usage)
+#   extra_entity       optional  HA extra %        (default ...extra_usage)
+#   credits_entity     optional  HA extra credits  (default ...extra_usage_credits)
+#   session_clock_id   required  id of the session reset-clock text_sensor
+#   session_resetin_id required  id of the "reset in" minutes sensor
+#   weekly_clock_id    required  id of the weekly reset-clock text_sensor
+#   ttl_eta_id         required  id of the "100% at" ETA text_sensor
+#   burn5_id           required  id of the 5m burn-rate sensor
+#   burn30_id          required  id of the 30m burn-rate sensor
+
+sensor:
+  - platform: homeassistant
+    id: ${uid}_session_pct
+    entity_id: ${session_entity | default("sensor.claude_usage_stefan_pro_session_usage")}
+    internal: true
+  - platform: homeassistant
+    id: ${uid}_week_pct
+    entity_id: ${weekly_entity | default("sensor.claude_usage_stefan_pro_week_usage")}
+    internal: true
+  - platform: homeassistant
+    id: ${uid}_extra_pct
+    entity_id: ${extra_entity | default("sensor.claude_usage_stefan_pro_extra_usage")}
+    internal: true
+  - platform: homeassistant
+    id: ${uid}_extra_credits
+    entity_id: ${credits_entity | default("sensor.claude_usage_stefan_pro_extra_usage_credits")}
+    internal: true
+
+interval:
+  - interval: ${refresh_sec | default(3)}s
+    then:
+      # ---- Session: bar fill + recolour, then the composite label ----
+      - lambda: |-
+          float v = id(${uid}_session_pct).has_state() ? id(${uid}_session_pct).state : 0;
+          lv_bar_set_value(id(${uid}_sess_bar), (int) v, LV_ANIM_ON);
+          lv_color_t c = (v >= 80) ? lv_color_hex(0xE53935) : (v >= 50) ? lv_color_hex(0xFFB300) : lv_color_hex(0x43A047);
+          lv_obj_set_style_bg_color(id(${uid}_sess_bar), c, LV_PART_INDICATOR);
+      - lvgl.label.update:
+          id: ${uid}_sess_lbl
+          text: !lambda |-
+            int p = id(${uid}_session_pct).has_state() ? (int) id(${uid}_session_pct).state : 0;
+            std::string clk = id(${session_clock_id}).has_state() ? id(${session_clock_id}).state : "--:--";
+            char buf[72];
+            if (id(${session_resetin_id}).has_state() && !std::isnan(id(${session_resetin_id}).state))
+              snprintf(buf, sizeof(buf), "Session %d%% - Reset in %d m - %s",
+                       p, (int) id(${session_resetin_id}).state, clk.c_str());
+            else
+              snprintf(buf, sizeof(buf), "Session %d%% - %s", p, clk.c_str());
+            return std::string(buf);
+
+      # ---- Weekly: bar fill + recolour, label with absolute reset time ----
+      - lambda: |-
+          float v = id(${uid}_week_pct).has_state() ? id(${uid}_week_pct).state : 0;
+          lv_bar_set_value(id(${uid}_week_bar), (int) v, LV_ANIM_ON);
+          lv_color_t c = (v >= 80) ? lv_color_hex(0xE53935) : (v >= 50) ? lv_color_hex(0xFFB300) : lv_color_hex(0x43A047);
+          lv_obj_set_style_bg_color(id(${uid}_week_bar), c, LV_PART_INDICATOR);
+      - lvgl.label.update:
+          id: ${uid}_week_lbl
+          text: !lambda |-
+            int p = id(${uid}_week_pct).has_state() ? (int) id(${uid}_week_pct).state : 0;
+            std::string clk = id(${weekly_clock_id}).has_state() ? id(${weekly_clock_id}).state : "--:--";
+            char buf[48];
+            snprintf(buf, sizeof(buf), "Weekly %d%% - %s", p, clk.c_str());
+            return std::string(buf);
+
+      # ---- Extra usage: bar fill + recolour, label with percent + credits ----
+      # Extra usage is OPTIONAL — the user can switch it off in HA, in which case
+      # the sensor never gets a state. Hide the whole row then; SPACE_EVENLY makes
+      # the remaining rows take up the freed space so nothing looks gappy.
+      - lambda: |-
+          if (!id(${uid}_extra_pct).has_state() || std::isnan(id(${uid}_extra_pct).state)) {
+            lv_obj_add_flag(id(${uid}_extra_row), LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+          lv_obj_clear_flag(id(${uid}_extra_row), LV_OBJ_FLAG_HIDDEN);
+          float v = id(${uid}_extra_pct).state;
+          lv_bar_set_value(id(${uid}_extra_bar), (int) v, LV_ANIM_ON);
+          lv_color_t c = (v >= 80) ? lv_color_hex(0xE53935) : (v >= 50) ? lv_color_hex(0xFFB300) : lv_color_hex(0x43A047);
+          lv_obj_set_style_bg_color(id(${uid}_extra_bar), c, LV_PART_INDICATOR);
+      - lvgl.label.update:
+          id: ${uid}_extra_lbl
+          text: !lambda |-
+            int p = id(${uid}_extra_pct).has_state() ? (int) id(${uid}_extra_pct).state : 0;
+            char buf[56];
+            if (id(${uid}_extra_credits).has_state() && !std::isnan(id(${uid}_extra_credits).state))
+              snprintf(buf, sizeof(buf), "Extra Usage: %d%% - %.1f Credits", p, id(${uid}_extra_credits).state);
+            else
+              snprintf(buf, sizeof(buf), "Extra Usage: %d%%", p);
+            return std::string(buf);
+
+      # ---- Time till 100%: bar tracks session %, label shows the ETA clock ----
+      - lambda: |-
+          float v = id(${uid}_session_pct).has_state() ? id(${uid}_session_pct).state : 0;
+          lv_bar_set_value(id(${uid}_ttl_bar), (int) v, LV_ANIM_ON);
+          lv_color_t c = (v >= 80) ? lv_color_hex(0xE53935) : (v >= 50) ? lv_color_hex(0xFFB300) : lv_color_hex(0x43A047);
+          lv_obj_set_style_bg_color(id(${uid}_ttl_bar), c, LV_PART_INDICATOR);
+      - lvgl.label.update:
+          id: ${uid}_ttl_lbl
+          text: !lambda |-
+            // ETA clock comes from the backend; the minutes-until are computed
+            // here from the SAME inputs the ETA uses (session % + 30m burn) so
+            // the two always agree. Burn rate is empty for the first minutes
+            // after boot -> show just the clock fallback ("--:--").
+            std::string clk = id(${ttl_eta_id}).has_state() ? id(${ttl_eta_id}).state : "--:--";
+            bool have_min = id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state) &&
+                            id(${burn30_id}).has_state() && !std::isnan(id(${burn30_id}).state) &&
+                            id(${burn30_id}).state > 0.0f;
+            char buf[48];
+            if (have_min) {
+              int mins = (int) ((100.0f - id(${uid}_session_pct).state) / id(${burn30_id}).state * 60.0f);
+              if (mins < 0) mins = 0;
+              snprintf(buf, sizeof(buf), "Time till 100%% - %dm - %s", mins, clk.c_str());
+            } else {
+              snprintf(buf, sizeof(buf), "Time till 100%% - %s", clk.c_str());
+            }
+            return std::string(buf);
+
+      # ---- Burn line: 5m + 30m rate ----
+      - lvgl.label.update:
+          id: ${uid}_burn_lbl
+          text: !lambda |-
+            char b5[12], b30[12];
+            if (id(${burn5_id}).has_state() && !std::isnan(id(${burn5_id}).state))
+              snprintf(b5, sizeof(b5), "%.1f", id(${burn5_id}).state);
+            else snprintf(b5, sizeof(b5), "--");
+            if (id(${burn30_id}).has_state() && !std::isnan(id(${burn30_id}).state))
+              snprintf(b30, sizeof(b30), "%.1f", id(${burn30_id}).state);
+            else snprintf(b30, sizeof(b30), "--");
+            char buf[48];
+            snprintf(buf, sizeof(buf), "Burn  5m %s  \xC2\xB7  30m %s %%/h", b5, b30);
+            return std::string(buf);
+
+lvgl:
+  pages:
+    - id: !extend ${page_id | default("main_page")}
+      widgets:
+        - obj:
+            id: ${uid}_panel
+            grid_cell_row_pos: ${row}
+            grid_cell_column_pos: ${column}
+            grid_cell_row_span: ${row_span | default(4)}
+            grid_cell_column_span: ${column_span | default(2)}
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
+            bg_opa: TRANSP
+            border_width: 0
+            pad_left: 14
+            pad_right: 18
+            pad_top: 10
+            pad_bottom: 10
+            layout:
+              type: flex
+              flex_flow: COLUMN
+              flex_align_main: SPACE_EVENLY
+              flex_align_cross: START
+              pad_row: 6
+            widgets:
+              # Session row
+              - obj:
+                  id: ${uid}_sess_row
+                  width: 100%
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_cross: START
+                    pad_row: 2
+                  widgets:
+                    - label:
+                        id: ${uid}_sess_lbl
+                        width: 100%
+                        text_font: ${stat_font | default("nunito_18")}
+                        text_color: $label_on_color
+                        text_align: LEFT
+                        text: "Session —"
+                    - bar:
+                        id: ${uid}_sess_bar
+                        width: 100%
+                        height: 14
+                        radius: 6
+                        min_value: 0
+                        max_value: 100
+                        value: 0
+                        animated: true
+                        bg_color: $button_off_color
+                        bg_opa: COVER
+                        indicator:
+                          radius: 6
+                          bg_color: $button_on_color
+              # Weekly row
+              - obj:
+                  id: ${uid}_week_row
+                  width: 100%
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_cross: START
+                    pad_row: 2
+                  widgets:
+                    - label:
+                        id: ${uid}_week_lbl
+                        width: 100%
+                        text_font: ${stat_font | default("nunito_18")}
+                        text_color: $label_on_color
+                        text_align: LEFT
+                        text: "Weekly —"
+                    - bar:
+                        id: ${uid}_week_bar
+                        width: 100%
+                        height: 14
+                        radius: 6
+                        min_value: 0
+                        max_value: 100
+                        value: 0
+                        animated: true
+                        bg_color: $button_off_color
+                        bg_opa: COVER
+                        indicator:
+                          radius: 6
+                          bg_color: $button_on_color
+              # Extra usage row
+              - obj:
+                  id: ${uid}_extra_row
+                  width: 100%
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_cross: START
+                    pad_row: 2
+                  widgets:
+                    - label:
+                        id: ${uid}_extra_lbl
+                        width: 100%
+                        text_font: ${stat_font | default("nunito_18")}
+                        text_color: $label_on_color
+                        text_align: LEFT
+                        text: "Extra Usage —"
+                    - bar:
+                        id: ${uid}_extra_bar
+                        width: 100%
+                        height: 14
+                        radius: 6
+                        min_value: 0
+                        max_value: 100
+                        value: 0
+                        animated: true
+                        bg_color: $button_off_color
+                        bg_opa: COVER
+                        indicator:
+                          radius: 6
+                          bg_color: $button_on_color
+              # Time-till-100% row
+              - obj:
+                  id: ${uid}_ttl_row
+                  width: 100%
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_cross: START
+                    pad_row: 2
+                  widgets:
+                    - label:
+                        id: ${uid}_ttl_lbl
+                        width: 100%
+                        text_font: ${stat_font | default("nunito_18")}
+                        text_color: $label_on_color
+                        text_align: LEFT
+                        text: "Time till 100% —"
+                    - bar:
+                        id: ${uid}_ttl_bar
+                        width: 100%
+                        height: 14
+                        radius: 6
+                        min_value: 0
+                        max_value: 100
+                        value: 0
+                        animated: true
+                        bg_color: $button_off_color
+                        bg_opa: COVER
+                        indicator:
+                          radius: 6
+                          bg_color: $button_on_color
+              # Burn line
+              - label:
+                  id: ${uid}_burn_lbl
+                  width: 100%
+                  text_font: ${stat_font | default("nunito_18")}
+                  text_color: $label_on_color
+                  text_align: LEFT
+                  text: "Burn —"

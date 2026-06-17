@@ -25,6 +25,9 @@
 #   source_entity  optional  HA usage % sensor (default ...session_usage)
 #   name           optional  entity name exposed to HA (default "Clawd Session Time To 100")
 #   update_sec     optional  recompute cadence in seconds (default 30)
+#   time_id        optional  id of the time: component (default system_time)
+#   eta_name       optional  entity name for the absolute "100% at HH:MM" sensor
+#                            (default "Clawd Session 100% At")
 
 sensor:
   - platform: homeassistant
@@ -59,4 +62,35 @@ text_sensor:
       const int mins = (int) ((100.0f - pct) / rate * 60.0f);
       char buf[24];
       snprintf(buf, sizeof(buf), "in %d Min.", mins);
+      return std::string(buf);
+
+  # The same prediction expressed as the ABSOLUTE wall-clock time the limit is
+  # hit ("100% um HH:MM") = now + the minutes computed above, re-localized to the
+  # device timezone. Backend entity; the stats panel renders it next to a bar.
+  - platform: template
+    id: ${uid}_eta_clock
+    name: ${eta_name | default("Clawd Session 100% At")}
+    icon: mdi:clock-alert-outline
+    update_interval: ${update_sec | default(30)}s
+    lambda: |-
+      if (!id(${uid}_ttl_usage).has_state() || std::isnan(id(${uid}_ttl_usage).state) ||
+          !id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state)) {
+        if (id(${uid}_eta_clock).has_state() && id(${uid}_eta_clock).state != "--:--")
+          return id(${uid}_eta_clock).state;
+        return std::string("--:--");
+      }
+      const float pct = id(${uid}_ttl_usage).state;
+      const float rate = id(${rate_id}).state;
+      if (rate <= 0.0f) {
+        if (id(${uid}_eta_clock).has_state() && id(${uid}_eta_clock).state != "--:--")
+          return id(${uid}_eta_clock).state;
+        return std::string("--:--");
+      }
+      const int mins = (int) ((100.0f - pct) / rate * 60.0f);
+      ESPTime n = id(${time_id | default("system_time")}).now();
+      if (!n.is_valid()) return std::string("--:--");
+      time_t target = (time_t) n.timestamp + (time_t) mins * 60;
+      ESPTime t = ESPTime::from_epoch_local(target);
+      char buf[8];
+      snprintf(buf, sizeof(buf), "%02d:%02d", t.hour, t.minute);
       return std::string(buf);
