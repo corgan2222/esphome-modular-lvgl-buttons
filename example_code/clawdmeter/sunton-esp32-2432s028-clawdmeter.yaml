@@ -1,4 +1,4 @@
-# esphome-modular-lvgl-buttons/example_code/sunton-esp32-2432s028-clawdmeter.yaml
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/sunton-esp32-2432s028-clawdmeter.yaml
 # Clawdmeter token-usage display — Sunton ESP32-2432S028 (320x240, rotation 0).
 # Smallest supported screen. The clawdmeter UI is resolution-agnostic: it
 # measures the creature region at boot and fits a square pixel-art canvas, so the
@@ -9,7 +9,10 @@
 # sibling — not the all-in-one theme/index.yaml used by the larger boards.
 substitutions:
   icon_font: mdi_icons_40
-  text_font: nunito_20
+  # Smallest supported screen (320x240): the default nunito_20 makes the stats
+  # labels wrap and the three labels + two bars overflow the stats box. A 14px
+  # font keeps every "… resets in …" label on one line and the panel fits.
+  text_font: nunito_14
   text_color: white
   bg_color: black
   button_on_color: "ep_orange"
@@ -74,6 +77,12 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
     vars:
       uid: clawd
+      # 320x240 is short: give the stats panel half the screen so the two bars
+      # and their labels are not cramped under the creature. Same 4% top margin
+      # as every other display (4% + 46% creature + 50% stats = 100%).
+      clawd_margin_top: "4%"
+      clawd_creature_h: "46%"
+      clawd_stats_h: "50%"
 
 lvgl:
   pages:
@@ -119,6 +128,12 @@ font:
   - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"
     id: nunito_18
     size: 18
+    bpp: 8
+
+  # text_font for this 320x240 board: keeps the stats labels on one line.
+  - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"
+    id: nunito_14
+    size: 14
     bpp: 8
 
   - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"

@@ -1,5 +1,5 @@
-# esphome-modular-lvgl-buttons/example_code/guition-esp32-jc8048w535-clawdmeter.yaml
-# Clawdmeter token-usage display — Guition ESP32 JC8048W535 (800x480, rotation 0).
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/guition-esp32-s3-4848s040-clawdmeter.yaml
+# Clawdmeter token-usage display — Guition ESP32-S3-4848S040 (480x480, rotation 180).
 # The clawdmeter UI is resolution-agnostic: it measures the creature region at
 # boot and fits a square pixel-art canvas, so the same include works on every
 # supported display. See ui/clawdmeter/README.md.
@@ -17,9 +17,9 @@ substitutions:
   button_text_color: "white"
 
 esphome:
-  name: "clawdmeter-jc8048w535"
-  friendly_name: "Clawdmeter JC8048W535"
-  comment: "Clawdmeter token-usage display on Guition ESP32 JC8048W535 (800x480)"
+  name: "clawdmeter-4848s040"
+  friendly_name: "Clawdmeter 4848S040"
+  comment: "Clawdmeter token-usage display on Guition ESP32-S3-4848S040 (480x480)"
 
 logger:
   level: debug
@@ -36,9 +36,9 @@ packages:
   theme:   !include esphome-modular-lvgl-buttons/common/theme/index.yaml
   backlight: !include esphome-modular-lvgl-buttons/common/backlight_time.yaml
   hardware: !include
-    file: esphome-modular-lvgl-buttons/hardware/guition-esp32-jc8048w535.yaml
+    file: esphome-modular-lvgl-buttons/hardware/guition-esp32-s3-4848s040.yaml
     vars:
-      rotation: "0"
+      rotation: "180"
   loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
   info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
 
@@ -46,6 +46,14 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
     vars:
       uid: clawd
+      # Square panel: split the layout over two pages so neither the creature
+      # nor the stats are cramped. Page 1 = creature (full screen), page 2 =
+      # stats, reachable by swiping right (see swipe_navigation below).
+      stats_page_id: stats_page
+      clawd_margin_top: "4%"
+      clawd_creature_h: "92%"
+      clawd_stats_h: "92%"
+      clawd_stats_align: CENTER
 
 lvgl:
   pages:
@@ -53,3 +61,9 @@ lvgl:
       styles: page_style
       bg_color: $bg_color
       widgets: []
+      <<: !include esphome-modular-lvgl-buttons/common/swipe_navigation.yaml
+    - id: stats_page
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []
+      <<: !include esphome-modular-lvgl-buttons/common/swipe_navigation.yaml

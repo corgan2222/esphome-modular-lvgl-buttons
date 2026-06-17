@@ -1,0 +1,93 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/usage_bar.yaml
+# A single Clawdmeter usage bar (label + horizontal bar) as one grid tile.
+# Generic and self-contained: include it once per bar you want (e.g. a session
+# bar and a weekly bar) with a different uid/entity_id/colour. Subscribes to its
+# own HA percentage sensor and updates only its own widgets, so it works with or
+# without any other clawdmeter element present.
+#
+# Does NOT require engine.yaml (no animation engine needed for a plain bar).
+#
+# vars:
+#   uid              required  namespace prefix (unique per bar)
+#   entity_id        required  HA numeric % sensor, e.g.
+#                              "sensor.SET_ME_session_usage"
+#   text             optional  label prefix (default "Usage")
+#   row              required  grid row
+#   column           required  grid column
+#   row_span         optional  default 1
+#   column_span      optional  default 1
+#   page_id          optional  parent page (default main_page)
+#   recolor          optional  "true" = recolour the bar by severity
+#                              thresholds; "false" = keep indicator_color static
+#                              (default "true")
+#   indicator_color  optional  static indicator colour when recolor=false
+#                              (default $button_on_color)
+#   clawd_bar_low    optional  fill colour  <50%  (default "0x43A047" green)
+#   clawd_bar_mid    optional  fill colour 50-80% (default "0xFFB300" amber)
+#   clawd_bar_high   optional  fill colour >=80%  (default "0xE53935" red)
+
+sensor:
+  - platform: homeassistant
+    id: ${uid}_pct
+    entity_id: ${entity_id}
+    on_value:
+      then:
+        - lvgl.bar.update:
+            id: ${uid}_bar
+            value: !lambda 'return x;'
+        - lambda: |-
+            if (!${recolor | default("true")}) return;
+            lv_color_t c = (x >= 80) ? lv_color_hex(${clawd_bar_high | default("0xE53935")})
+                         : (x >= 50) ? lv_color_hex(${clawd_bar_mid  | default("0xFFB300")})
+                                     : lv_color_hex(${clawd_bar_low  | default("0x43A047")});
+            lv_obj_set_style_bg_color(id(${uid}_bar), c, LV_PART_INDICATOR);
+        - lvgl.label.update:
+            id: ${uid}_lbl
+            text: !lambda |-
+              char buf[40];
+              snprintf(buf, sizeof(buf), "${text | default("Usage")}  %d%%", (int) x);
+              return std::string(buf);
+
+lvgl:
+  pages:
+    - id: !extend ${page_id | default("main_page")}
+      widgets:
+        - obj:
+            id: ${uid}_cell
+            grid_cell_row_pos: ${row}
+            grid_cell_column_pos: ${column}
+            grid_cell_row_span: ${row_span | default(1)}
+            grid_cell_column_span: ${column_span | default(1)}
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 4
+            layout:
+              type: flex
+              flex_flow: COLUMN
+              flex_align_main: CENTER
+              flex_align_cross: CENTER
+              pad_row: 4
+            widgets:
+              - label:
+                  id: ${uid}_lbl
+                  width: 100%
+                  text_font: $text_font
+                  text_color: $label_on_color
+                  text_align: LEFT
+                  text: ${text | default("Usage")}  —
+              - bar:
+                  id: ${uid}_bar
+                  width: 100%
+                  height: 18
+                  radius: 6
+                  min_value: 0
+                  max_value: 100
+                  value: 0
+                  animated: true
+                  bg_color: $button_off_color
+                  bg_opa: COVER
+                  indicator:
+                    radius: 6
+                    bg_color: ${indicator_color | default("$button_on_color")}

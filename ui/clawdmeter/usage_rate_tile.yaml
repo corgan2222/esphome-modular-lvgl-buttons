@@ -1,0 +1,66 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate_tile.yaml
+# OPTIONAL display tile for an on-device burn-rate sensor produced by
+# usage_rate.yaml. The backend sensor (usage_rate.yaml) is the source of truth
+# and is NOT in the default grid; add this file only if you also want the value
+# drawn as an LVGL grid cell. It reads the sensor by id via a polling interval,
+# so it stays fully decoupled from the backend package.
+#
+# Pair with a usage_rate.yaml instance and pass its computed id as `rate_id`:
+#   clawd_burn5:      { file: usage_rate.yaml,      vars: { uid: clawd_burn5, window_min: 5 } }
+#   clawd_burn5_tile: { file: usage_rate_tile.yaml, vars: { uid: clawd_burn5_t, rate_id: clawd_burn5_rate, row: 2, column: 2 } }
+#
+# vars:
+#   uid          required  namespace prefix for the LVGL widget ids
+#   rate_id      required  id of the usage_rate.yaml sensor to display
+#   text         optional  tile label prefix (default "Burn")
+#   row          required  grid row
+#   column       required  grid column
+#   row_span     optional  default 1
+#   column_span  optional  default 1
+#   refresh_sec  optional  label refresh cadence in seconds (default 5)
+#   page_id      optional  parent page (default main_page)
+
+interval:
+  - interval: ${refresh_sec | default(5)}s
+    then:
+      - lvgl.label.update:
+          id: ${uid}_burn_val
+          text: !lambda |-
+            if (!id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state))
+              return std::string("—");
+            char buf[24];
+            snprintf(buf, sizeof(buf), "%.1f %%/h", id(${rate_id}).state);
+            return std::string(buf);
+
+lvgl:
+  pages:
+    - id: !extend ${page_id | default("main_page")}
+      widgets:
+        - obj:
+            id: ${uid}_burn_cell
+            grid_cell_row_pos: ${row}
+            grid_cell_column_pos: ${column}
+            grid_cell_row_span: ${row_span | default(1)}
+            grid_cell_column_span: ${column_span | default(1)}
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 4
+            layout:
+              type: flex
+              flex_flow: COLUMN
+              flex_align_main: CENTER
+              flex_align_cross: CENTER
+              pad_row: 2
+            widgets:
+              - label:
+                  id: ${uid}_burn_lbl
+                  text_font: $text_font
+                  text_color: $label_off_color
+                  text: ${text | default("Burn")}
+              - label:
+                  id: ${uid}_burn_val
+                  text_font: $text_font
+                  text_color: $label_on_color
+                  text: "—"

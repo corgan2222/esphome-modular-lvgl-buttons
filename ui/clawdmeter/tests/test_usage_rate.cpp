@@ -37,6 +37,22 @@ int main() {
   g_now = 660000; clawd_usage_sample(2.0f + 0.15f*5); // +0.75% over 5 min = 0.15 %/min
   EXPECT_EQ(clawd_usage_group(), 1);
 
+  // Reconnect-burst dedup: a flapping HA connection re-publishes the SAME value
+  // many times within milliseconds. Those bursts must NOT collapse the window.
+  // Start fresh, lay a clean 5-min span, then slam in a burst at the end.
+  clawd_detail::rate_reset();
+  g_now = 1000000; clawd_usage_sample(10.0f);
+  g_now = 1300000; clawd_usage_sample(10.30f);
+  EXPECT_EQ(clawd_usage_sample_count(), 2);
+  // 4 identical-value samples ~1 ms apart simulate an API reconnect storm.
+  g_now = 1300001; clawd_usage_sample(10.30f);
+  g_now = 1300002; clawd_usage_sample(10.30f);
+  g_now = 1300003; clawd_usage_sample(10.30f);
+  g_now = 1300004; clawd_usage_sample(10.30f);
+  // All four were debounced away: still 2 samples, window still the full 5 min.
+  EXPECT_EQ(clawd_usage_sample_count(), 2);
+  EXPECT_EQ((int)(clawd_usage_window_ms() / 1000), 300);
+
   if (fails) { printf("%d test(s) failed\n", fails); return 1; }
   printf("OK: usage_rate state machine\n"); return 0;
 }

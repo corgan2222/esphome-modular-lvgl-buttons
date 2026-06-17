@@ -23,8 +23,15 @@ static inline uint32_t clawd_now() { return esphome::millis(); }
 #define CLAWD_RATE_THRESH_NORMAL  0.10f
 #define CLAWD_RATE_THRESH_ACTIVE  0.20f
 #define CLAWD_RATE_THRESH_HEAVY   0.33f
-#define CLAWD_MIN_WINDOW_MS       240000UL
-#define CLAWD_RING_SIZE           6
+#define CLAWD_MIN_WINDOW_MS       120000UL   // 2 min: warm up faster after a reset
+#define CLAWD_RING_SIZE           12         // ~24-36 min of history at HA's 2-3 min cadence
+// Reconnect debounce: the HA `homeassistant` sensor re-publishes the current
+// value on every API (re)connect, so a flapping connection delivers a BURST of
+// identical-value samples within a few ms of each other. Left unchecked those
+// bursts fill the ring with near-identical timestamps, collapsing the window
+// below CLAWD_MIN_WINDOW_MS and flapping the creature back to "warming up".
+// Ignore any sample that arrives within this gap of the last stored one.
+#define CLAWD_MIN_SAMPLE_GAP_MS   15000UL
 
 namespace clawd_detail {
 struct Sample { uint32_t ms; float pct; };
@@ -40,7 +47,11 @@ inline void clawd_usage_sample(float session_pct) {
   uint32_t now = clawd_now();
   if (g_count > 0) {
     uint8_t latest = (g_head + CLAWD_RING_SIZE - 1) % CLAWD_RING_SIZE;
-    if (session_pct + 5.0f < g_ring[latest].pct) rate_reset();  // session reset
+    if (session_pct + 5.0f < g_ring[latest].pct) {
+      rate_reset();  // session reset: a real drop always restarts tracking
+    } else if (now - g_ring[latest].ms < CLAWD_MIN_SAMPLE_GAP_MS) {
+      return;        // reconnect burst: ignore samples that arrive too close together
+    }
   }
   g_ring[g_head] = { now, session_pct };
   g_head = (g_head + 1) % CLAWD_RING_SIZE;
@@ -61,6 +72,49 @@ inline int clawd_usage_group() {
   if (rate < CLAWD_RATE_THRESH_ACTIVE) return 1;
   if (rate < CLAWD_RATE_THRESH_HEAVY)  return 2;
   return 3;
+}
+
+// ---- Diagnostics: expose the raw figures behind clawd_usage_group() --------
+// clawd_usage_group() collapses everything into a 0..3 bucket, so a reported 0
+// is ambiguous (too few samples? window too short? rate below threshold?).
+// These accessors surface the underlying numbers for the ESPHome dashboard.
+
+// Current usage rate in %/min over the ring window, using the SAME maths as
+// clawd_usage_group(). Returns -1.0f while there is not yet enough data to
+// decide (fewer than 2 samples, or the window is shorter than CLAWD_MIN_WINDOW_MS).
+inline float clawd_usage_rate_per_min() {
+  using namespace clawd_detail;
+  if (g_count < 2) return -1.0f;
+  uint8_t o = oldest_idx();
+  uint8_t l = (g_head + CLAWD_RING_SIZE - 1) % CLAWD_RING_SIZE;
+  uint32_t dt = g_ring[l].ms - g_ring[o].ms;
+  if (dt < CLAWD_MIN_WINDOW_MS) return -1.0f;
+  float dp = g_ring[l].pct - g_ring[o].pct;
+  if (dp < 0.0f) dp = 0.0f;
+  return dp * 60000.0f / (float)dt;
+}
+
+// Number of usage samples currently held in the ring buffer (0..CLAWD_RING_SIZE).
+inline int clawd_usage_sample_count() { return clawd_detail::g_count; }
+
+// Milliseconds spanned by the samples in the ring (oldest..newest). 0 if <2.
+inline uint32_t clawd_usage_window_ms() {
+  using namespace clawd_detail;
+  if (g_count < 2) return 0;
+  uint8_t o = oldest_idx();
+  uint8_t l = (g_head + CLAWD_RING_SIZE - 1) % CLAWD_RING_SIZE;
+  return g_ring[l].ms - g_ring[o].ms;
+}
+
+// Human-readable name of a usage group (0..3), or "?" if out of range.
+inline const char* clawd_usage_group_name(int g) {
+  switch (g) {
+    case 0: return "idle";
+    case 1: return "normal";
+    case 2: return "active";
+    case 3: return "heavy";
+    default: return "?";
+  }
 }
 
 // ---- ISO-8601 timestamp -> "minutes from now" -----------------------------
@@ -90,14 +144,30 @@ inline int clawd_iso_minutes_from(const char* iso, long long now_epoch) {
 #ifndef CLAWD_RATE_ONLY  // ----- the rest needs LVGL + the data header -----
 #include "esphome/components/lvgl/lvgl_proxy.h"   // pulls in lvgl.h types
 #include "splash_animations.h"
-#include <esp_heap_caps.h>
+#include <cstdlib>
+// On ESP targets the canvas buffer is placed in PSRAM via the ESP-IDF heap API.
+// The SDL/host build has neither esp_heap_caps.h nor PSRAM, so fall back to a
+// plain malloc there. __has_include keeps this self-contained — no reliance on
+// ESPHome's USE_* defines being visible at this include point.
+#if defined(__has_include) && __has_include(<esp_heap_caps.h>)
+#  include <esp_heap_caps.h>
+#  define CLAWD_HAS_PSRAM 1
+#endif
 
 namespace clawd_detail {
 #define CLAWD_GRID 20
 #define CLAWD_COL_EMPTY 0x0000
 #define CLAWD_ROTATE_MS 20000
+// "Random" mode (g_anim_mode == CLAWD_ANIM_RANDOM) rotates to a new random clip
+// on this faster cadence instead of the usage-driven 20s interval.
+#define CLAWD_RANDOM_MS 5000
 #define CLAWD_GROUP_COUNT 4
 #define CLAWD_GROUP_MAX   4
+
+// Animation-mode sentinels (see g_anim_mode below). Non-negative values are a
+// forced 0-based index into splash_anims[].
+#define CLAWD_ANIM_AUTO   (-1)  // usage-driven auto-pick
+#define CLAWD_ANIM_RANDOM (-2)  // cycle a random clip every CLAWD_RANDOM_MS
 
 static lv_obj_t *g_canvas   = nullptr;
 static uint16_t *g_canvasbuf = nullptr;
@@ -105,6 +175,10 @@ static uint16_t *g_rowbuf    = nullptr;
 static int       g_cell = 24, g_cw = 480, g_ch = 480;
 static uint16_t  g_cur_anim = 0, g_cur_frame = 0;
 static uint32_t  g_frame_started = 0, g_last_pick = 0;
+// Animation selection mode: CLAWD_ANIM_AUTO (-1) = automatic (driven by usage
+// group/rate); CLAWD_ANIM_RANDOM (-2) = cycle a random clip every
+// CLAWD_RANDOM_MS; 0..SPLASH_ANIM_COUNT-1 = forced to that specific index.
+static int       g_anim_mode = CLAWD_ANIM_AUTO;
 
 static int8_t  g_group_lists[CLAWD_GROUP_COUNT][CLAWD_GROUP_MAX];
 static uint8_t g_group_size[CLAWD_GROUP_COUNT] = {0};
@@ -149,6 +223,38 @@ inline void render_frame(const uint8_t *cells, const uint16_t *palette) {
 
 inline void pick_for_rate() {
   if (SPLASH_ANIM_COUNT == 0) return;
+  // Random mode: jump to a random clip (avoiding an immediate repeat) and start
+  // it at frame 0. Refresh g_last_pick so clawd_tick()'s rate gate measures the
+  // CLAWD_RANDOM_MS interval from this pick.
+  if (g_anim_mode == CLAWD_ANIM_RANDOM) {
+    g_last_pick = clawd_now();
+    uint16_t idx = g_cur_anim;
+    if (SPLASH_ANIM_COUNT > 1) {
+      do { idx = (uint16_t)(rand() % SPLASH_ANIM_COUNT); } while (idx == g_cur_anim);
+    } else {
+      idx = 0;
+    }
+    g_cur_anim = idx;
+    g_cur_frame = 0;
+    g_frame_started = clawd_now();
+    const splash_anim_def_t *a = &splash_anims[g_cur_anim];
+    render_frame(a->frames[0], a->palette);
+    return;
+  }
+  // Manual override: hold the chosen animation. Refresh g_last_pick so the
+  // 20s auto-rotate never fires, and only (re)start the clip when it changes
+  // so a running animation isn't reset to frame 0 every rotate interval.
+  if (g_anim_mode >= 0 && g_anim_mode < SPLASH_ANIM_COUNT) {
+    g_last_pick = clawd_now();
+    if (g_cur_anim != (uint16_t) g_anim_mode) {
+      g_cur_anim = (uint16_t) g_anim_mode;
+      g_cur_frame = 0;
+      g_frame_started = clawd_now();
+      const splash_anim_def_t *a = &splash_anims[g_cur_anim];
+      render_frame(a->frames[0], a->palette);
+    }
+    return;
+  }
   int g = clawd_usage_group();
   if (g < 0 || g >= CLAWD_GROUP_COUNT) g = 0;
   if (g_group_size[g] == 0) return;
@@ -184,8 +290,14 @@ inline lv_obj_t* clawd_init(lv_obj_t* parent, int screen_w, int screen_h) {
   if (g_cell < 4) g_cell = 4;
   g_cw = CLAWD_GRID * g_cell;
   g_ch = CLAWD_GRID * g_cell;
+#ifdef CLAWD_HAS_PSRAM
   g_canvasbuf = (uint16_t*)heap_caps_malloc(g_cw * g_ch * 2, MALLOC_CAP_SPIRAM);
   g_rowbuf    = (uint16_t*)heap_caps_malloc(g_cw * 2,        MALLOC_CAP_SPIRAM);
+#else
+  // SDL/host build: no PSRAM, plain heap is fine for the small canvas buffer.
+  g_canvasbuf = (uint16_t*)malloc(g_cw * g_ch * 2);
+  g_rowbuf    = (uint16_t*)malloc(g_cw * 2);
+#endif
   if (!g_canvasbuf || !g_rowbuf) return nullptr;
   g_canvas = lv_canvas_create(parent);
   lv_canvas_set_buffer(g_canvas, g_canvasbuf, g_cw, g_ch, LV_COLOR_FORMAT_RGB565);
@@ -203,7 +315,9 @@ inline lv_obj_t* clawd_init(lv_obj_t* parent, int screen_w, int screen_h) {
 inline void clawd_tick() {
   using namespace clawd_detail;
   if (!g_canvas || SPLASH_ANIM_COUNT == 0) return;
-  if (clawd_now() - g_last_pick >= CLAWD_ROTATE_MS) pick_for_rate();
+  uint32_t rotate_gate = (g_anim_mode == CLAWD_ANIM_RANDOM) ? CLAWD_RANDOM_MS
+                                                            : CLAWD_ROTATE_MS;
+  if (clawd_now() - g_last_pick >= rotate_gate) pick_for_rate();
   const splash_anim_def_t *a = &splash_anims[g_cur_anim];
   if (a->frame_count == 0) return;
   uint16_t hold = a->holds[g_cur_frame];
@@ -224,6 +338,35 @@ inline void clawd_set_usage(float session_pct, int session_reset_mins,
                             float weekly_pct, int weekly_reset_mins) {
   (void) session_reset_mins; (void) weekly_pct; (void) weekly_reset_mins;
   clawd_usage_sample(session_pct);
+}
+
+// ---- Animation selection API (manual override / auto) ----------------------
+// Set the animation mode: CLAWD_ANIM_AUTO (-1) = automatic (usage-driven),
+// CLAWD_ANIM_RANDOM (-2) = cycle a random clip every CLAWD_RANDOM_MS, or a
+// 0-based index into splash_anims[] to force a specific animation. Applies
+// immediately. Out-of-range values fall back to auto.
+inline void clawd_set_anim_mode(int mode) {
+  using namespace clawd_detail;
+  if (mode < CLAWD_ANIM_RANDOM || mode >= SPLASH_ANIM_COUNT) mode = CLAWD_ANIM_AUTO;
+  g_anim_mode = mode;
+  pick_for_rate();  // apply now (auto re-picks by rate; forced jumps to clip)
+}
+
+// Current mode: -1 = auto, else the forced animation index.
+inline int clawd_get_anim_mode() { return clawd_detail::g_anim_mode; }
+
+// Total number of selectable animations.
+inline int clawd_anim_count() { return SPLASH_ANIM_COUNT; }
+
+// Name of the animation at index i (nullptr if out of range).
+inline const char* clawd_anim_name_at(int i) {
+  if (i < 0 || i >= SPLASH_ANIM_COUNT) return nullptr;
+  return splash_anims[i].name;
+}
+
+// Name of the animation currently on screen (for status/exposed text_sensor).
+inline const char* clawd_current_anim_name() {
+  return splash_anims[clawd_detail::g_cur_anim].name;
 }
 
 #endif  // CLAWD_RATE_ONLY

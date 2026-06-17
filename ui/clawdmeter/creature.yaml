@@ -1,0 +1,77 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/creature.yaml
+# Clawdmeter creature — the animated pixel-art canvas as a single grid tile.
+# Drop it into one cell of your LVGL grid; the engine measures the cell's
+# (margin-inset) content box at boot and fits a square canvas into it, so it
+# stays resolution-agnostic just like the full-screen variant.
+#
+# Requires ui/clawdmeter/engine.yaml to be included once in the same config.
+#
+# vars:
+#   uid                 required  namespace prefix
+#   row                 required  grid row
+#   column              required  grid column
+#   row_span            optional  default 1
+#   column_span         optional  default 1
+#   page_id             optional  parent page (default main_page)
+#   size                optional  size of the creature canvas region inside its
+#                                 cell, as a percent ("88%") or px ("220") of the
+#                                 cell — values <100% leave a DYNAMIC margin that
+#                                 scales with the cell (default "100%", no inset).
+#                                 The canvas is centred, so "88%" ≈ a 6% margin
+#                                 on every side. (LVGL pad_* takes only px, so a
+#                                 percentage inset is expressed via this size.)
+#   session_pct_entity  optional  HA numeric % sensor that drives the animation
+#                                 group in AUTO mode. SET THIS from your device
+#                                 YAML — the default is a deliberately invalid
+#                                 placeholder (sensor.SET_ME_session_usage) so a
+#                                 missing binding shows up as "unavailable"
+#                                 instead of silently working off the wrong id.
+#
+# Requires screen_width / screen_height substitutions (every hardware/*.yaml
+# provides them) — used only as a fallback if the layout isn't resolved yet.
+
+esphome:
+  on_boot:
+    - priority: -100   # after LVGL + display are up
+      then:
+        - lambda: |-
+            clawd_init(id(${uid}_creature_root), ${screen_width}, ${screen_height});
+
+# Feed the rate sampler so AUTO mode can pick an animation group. Only the
+# session percentage matters here; the other clawd_set_usage fields are unused
+# by the creature (the bars display their own values).
+sensor:
+  - platform: homeassistant
+    id: ${uid}_anim_session_pct
+    entity_id: ${session_pct_entity | default("sensor.SET_ME_session_usage")}
+    on_value:
+      then:
+        - lambda: 'clawd_set_usage(x, 0, 0.0f, 0);'
+
+lvgl:
+  pages:
+    - id: !extend ${page_id | default("main_page")}
+      widgets:
+        - obj:
+            id: ${uid}_creature_cell
+            grid_cell_row_pos: ${row}
+            grid_cell_column_pos: ${column}
+            grid_cell_row_span: ${row_span | default(1)}
+            grid_cell_column_span: ${column_span | default(1)}
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            widgets:
+              # Dynamic margin: the canvas root is sized to `size` (a percent of
+              # the cell) and centred, so anything below 100% leaves an inset
+              # that scales with the cell. clawd_init measures THIS box.
+              - obj:
+                  id: ${uid}_creature_root
+                  align: CENTER
+                  width: ${size | default("100%")}
+                  height: ${size | default("100%")}
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0

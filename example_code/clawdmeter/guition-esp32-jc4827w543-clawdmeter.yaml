@@ -1,4 +1,4 @@
-# esphome-modular-lvgl-buttons/example_code/guition-esp32-jc4827w543-clawdmeter.yaml
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/guition-esp32-jc4827w543-clawdmeter.yaml
 # Clawdmeter token-usage display — Guition ESP32 JC4827W543 (480x272, rotation 180).
 # The clawdmeter UI is resolution-agnostic: it measures the creature region at
 # boot and fits a square pixel-art canvas, so the same include works on every

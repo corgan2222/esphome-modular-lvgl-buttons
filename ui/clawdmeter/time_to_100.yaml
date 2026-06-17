@@ -1,0 +1,98 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/time_to_100.yaml
+# ON-DEVICE "Zeit bis 100%". Replicates the Home Assistant *template* sensor
+# "Claude Session Zeit bis 100%" — but computes it on the ESP itself from the
+# raw usage % and an on-device burn-rate sensor, then re-exposes the result as
+# a device text_sensor (it has a `name:`), so it shows up in the ESPHome
+# dashboard / Home Assistant. No LVGL — pure backend entity. For a display tile
+# use time_to_100_tile.yaml.
+#
+# HA reference (template helper), uses the 30m burn rate:
+#   usage = <your HA session-usage % sensor>                     (%)
+#   burn  = ...claude_session_burn_rate_30m...                    (%/h)
+#   rate <= 0 or inputs unavailable -> keep last state else 'unbekannt'
+#   else -> "in {{ ((100 - usage) / rate * 60) | int }} Min."
+#
+# Pair it with a usage_rate.yaml instance (the 30m one) and pass that instance's
+# computed sensor id as `rate_id`:
+#   clawd_burn30: { file: usage_rate.yaml,  vars: { uid: clawd_burn30, window_min: 30 } }
+#   clawd_ttl:    { file: time_to_100.yaml, vars: { uid: clawd_ttl, rate_id: clawd_burn30_rate } }
+#
+# Does NOT require engine.yaml. Pure ESPHome, no custom C++ header.
+#
+# vars:
+#   uid            required  namespace prefix (exposed text_sensor id ${uid}_time_to_100)
+#   rate_id        required  id of the on-device burn-rate sensor to use (e.g. the 30m one)
+#   source_entity  optional  HA usage % sensor (default sensor.SET_ME_session_usage,
+#                            a deliberately invalid placeholder — bind the real
+#                            entity from your device YAML, never edit this file)
+#   name           optional  entity name exposed to HA (default "Clawd Session Time To 100")
+#   update_sec     optional  recompute cadence in seconds (default 30)
+#   time_id        optional  id of the time: component (default system_time)
+#   eta_name       optional  entity name for the absolute "100% at HH:MM" sensor
+#                            (default "Clawd Session 100% At")
+
+sensor:
+  - platform: homeassistant
+    id: ${uid}_ttl_usage
+    entity_id: ${source_entity | default("sensor.SET_ME_session_usage")}
+    internal: true
+
+text_sensor:
+  - platform: template
+    id: ${uid}_time_to_100
+    name: ${name | default("Clawd Session Time To 100")}
+    icon: mdi:timer-outline
+    update_interval: ${update_sec | default(30)}s
+    lambda: |-
+      // ESPHome template lambdas do not capture `this`; reach our own published
+      // state via the component id (the id(...) form provides member access).
+      // inputs unavailable -> keep last state, else "unbekannt"
+      if (!id(${uid}_ttl_usage).has_state() || std::isnan(id(${uid}_ttl_usage).state) ||
+          !id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state)) {
+        if (id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "unbekannt")
+          return id(${uid}_time_to_100).state;
+        return std::string("unbekannt");
+      }
+      const float pct = id(${uid}_ttl_usage).state;
+      const float rate = id(${rate_id}).state;
+      // rate <= 0 -> not climbing -> keep last state, else "unbekannt"
+      if (rate <= 0.0f) {
+        if (id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "unbekannt")
+          return id(${uid}_time_to_100).state;
+        return std::string("unbekannt");
+      }
+      const int mins = (int) ((100.0f - pct) / rate * 60.0f);
+      char buf[24];
+      snprintf(buf, sizeof(buf), "in %d Min.", mins);
+      return std::string(buf);
+
+  # The same prediction expressed as the ABSOLUTE wall-clock time the limit is
+  # hit ("100% um HH:MM") = now + the minutes computed above, re-localized to the
+  # device timezone. Backend entity; the stats panel renders it next to a bar.
+  - platform: template
+    id: ${uid}_eta_clock
+    name: ${eta_name | default("Clawd Session 100% At")}
+    icon: mdi:clock-alert-outline
+    update_interval: ${update_sec | default(30)}s
+    lambda: |-
+      if (!id(${uid}_ttl_usage).has_state() || std::isnan(id(${uid}_ttl_usage).state) ||
+          !id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state)) {
+        if (id(${uid}_eta_clock).has_state() && id(${uid}_eta_clock).state != "--:--")
+          return id(${uid}_eta_clock).state;
+        return std::string("--:--");
+      }
+      const float pct = id(${uid}_ttl_usage).state;
+      const float rate = id(${rate_id}).state;
+      if (rate <= 0.0f) {
+        if (id(${uid}_eta_clock).has_state() && id(${uid}_eta_clock).state != "--:--")
+          return id(${uid}_eta_clock).state;
+        return std::string("--:--");
+      }
+      const int mins = (int) ((100.0f - pct) / rate * 60.0f);
+      ESPTime n = id(${time_id | default("system_time")}).now();
+      if (!n.is_valid()) return std::string("--:--");
+      time_t target = (time_t) n.timestamp + (time_t) mins * 60;
+      ESPTime t = ESPTime::from_epoch_local(target);
+      char buf[8];
+      snprintf(buf, sizeof(buf), "%02d:%02d", t.hour, t.minute);
+      return std::string(buf);

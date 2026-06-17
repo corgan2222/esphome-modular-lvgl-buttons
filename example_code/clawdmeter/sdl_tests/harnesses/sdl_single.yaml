@@ -1,0 +1,85 @@
+# Reusable SDL test harness — single-page Clawdmeter (remote layout).
+#
+# Renders the resolution-agnostic remote.yaml layout (creature + stats stacked
+# on one page) in an SDL desktop window and exposes an HTTP screenshot endpoint
+# via the lvgl_screenshot external component. Used by run.sh to capture a
+# reference PNG for every non-square, non-grid display without flashing hardware.
+#
+# loading.yaml is deliberately NOT included: its boot overlay only clears on a
+# real Home Assistant API connect, which never happens under SDL, so it would
+# cover the UI in every screenshot. remote.yaml has no dependency on it.
+#
+# Screen size is overridden per display from the command line, e.g.:
+#   esphome -s screen_width 800 -s screen_height 480 compile sdl_single.yaml
+#
+# Screenshots are captured by capture.py (direct Xlib grab of the SDL/XWayland
+# window) rather than an in-firmware HTTP endpoint: the agillis lvgl_screenshot
+# component only builds against LVGL v8, while this stack uses the LVGL v9 fork
+# (pr#12312) where lv_color_t has no .ch member.
+
+external_components:
+  - source: github://pr#12312
+    components: [font, image, lvgl]
+    refresh: 1h
+
+substitutions:
+  icon_font: mdi_icons_40
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+  # Screen size — override with -s screen_width / -s screen_height per display.
+  screen_height: '480'
+  screen_width: '480'
+
+esphome:
+  name: clawdmeter-sdl
+  friendly_name: Clawdmeter SDL
+  on_boot:
+    # loading.yaml normally selects main_page once HA connects; without it the
+    # info page (registered first) would stay on top, so select main_page here.
+    - priority: -200
+      then:
+        - lvgl.page.show: main_page
+
+logger:
+  level: info
+
+# Required by the homeassistant sensor/text_sensor platforms in remote.yaml.
+# No HA ever connects under SDL, so the entities stay "unavailable" — the
+# creature still animates and the stats show their placeholder values.
+api:
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+packages:
+  sensors:  !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml
+  time:     !include esphome-modular-lvgl-buttons/common/time_homeassistant.yaml
+  theme:    !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  hardware: !include esphome-modular-lvgl-buttons/hardware/SDL-lvgl.yaml
+  # info page defines device_name_label / cp_login widgets referenced by the
+  # shared info refresh logic; it is a separate swipe page and never covers the
+  # creature, so it is safe to keep in the screenshot harness.
+  info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+
+  clawdmeter: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
+    vars:
+      uid: clawd
+
+lvgl:
+  pages:
+    - id: main_page
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []

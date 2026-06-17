@@ -1,0 +1,115 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
+# ON-DEVICE "Uhrzeit, wann die Session resettet" — the absolute wall-clock time
+# the current Claude session resets, as opposed to time_to_100.yaml which gives
+# the duration *until* the limit is hit.
+#
+# Source is a raw HA timestamp sensor (bound via the source_entity var from your
+# device YAML) whose state is an ISO-8601 instant in UTC, e.g.
+# "2026-06-17T17:19:59+00:00".
+# We pull that string, parse it, convert UTC -> local epoch and re-localize via
+# the device time component (TZ is set by common/backlight_time.yaml ->
+# homeassistant time), then publish just "HH:MM" as a device text_sensor. No
+# LVGL — pure backend entity, shows up in the ESPHome dashboard / HA.
+#
+# Requires a time: component in the config (any platform). The grid example
+# already has one via common/backlight_time.yaml (id system_time), which also
+# sets the timezone the localization depends on.
+#
+# vars:
+#   uid            required  namespace prefix (text_sensor id ${uid}_reset_clock)
+#   source_entity  optional  HA reset-time sensor. Bind it from your device
+#                            YAML; the default sensor.SET_ME_session_reset_time
+#                            is a deliberately invalid placeholder (never edit
+#                            this file) so a missing binding reads "unavailable".
+#   name           optional  entity name exposed to HA
+#                            (default "Clawd Session Reset Time")
+#   update_sec     optional  recompute cadence in seconds (default 30)
+#   time_id        optional  id of the time: component (default system_time)
+#   reset_in_name  optional  entity name for the minutes-until-reset sensor
+#                            (default "Clawd Session Reset In")
+
+globals:
+  # The parsed reset instant as a UTC epoch, written by the clock lambda below
+  # once a valid timestamp arrives. The minutes-until-reset sensor reads it and
+  # subtracts the live clock, so it counts down without re-parsing every tick.
+  - id: ${uid}_reset_epoch
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+sensor:
+  # Minutes from now until the session resets ("Reset in xx m"). Backend entity;
+  # the stats panel renders it. 0 once the reset instant has passed.
+  - platform: template
+    id: ${uid}_reset_in_min
+    name: ${reset_in_name | default("Clawd Session Reset In")}
+    unit_of_measurement: "min"
+    accuracy_decimals: 0
+    icon: mdi:timer-sand
+    update_interval: ${update_sec | default(30)}s
+    lambda: |-
+      if (id(${uid}_reset_epoch) == 0) return {};
+      ESPTime n = id(${time_id | default("system_time")}).now();
+      if (!n.is_valid()) return {};
+      int mins = (id(${uid}_reset_epoch) - (int) n.timestamp) / 60;
+      if (mins < 0) mins = 0;
+      return (float) mins;
+
+text_sensor:
+  - platform: homeassistant
+    id: ${uid}_reset_src
+    entity_id: ${source_entity | default("sensor.SET_ME_session_reset_time")}
+    internal: true
+
+  - platform: template
+    id: ${uid}_reset_clock
+    name: ${name | default("Clawd Session Reset Time")}
+    icon: mdi:timer-refresh
+    update_interval: ${update_sec | default(30)}s
+    lambda: |-
+      // ESPHome template lambdas do not capture `this`; reach our own published
+      // state via the component id. Inputs unavailable -> keep last, else "--:--".
+      const std::string &v = id(${uid}_reset_src).state;
+      if (v.empty() || v == "unknown" || v == "unavailable") {
+        if (id(${uid}_reset_clock).has_state() && id(${uid}_reset_clock).state != "--:--")
+          return id(${uid}_reset_clock).state;
+        return std::string("--:--");
+      }
+      // Parse the date/time fields of an ISO-8601 instant "YYYY-MM-DDTHH:MM:SS±HH:MM".
+      int Y, Mo, D, h, mi, s;
+      if (sscanf(v.c_str(), "%d-%d-%dT%d:%d:%d", &Y, &Mo, &D, &h, &mi, &s) != 6) {
+        if (id(${uid}_reset_clock).has_state() && id(${uid}_reset_clock).state != "--:--")
+          return id(${uid}_reset_clock).state;
+        return std::string("--:--");
+      }
+      // Parse the trailing UTC offset (Z or ±HH:MM) so we get a true UTC epoch.
+      int off_min = 0;
+      size_t tp = v.find('T');
+      if (tp != std::string::npos) {
+        std::string tail = v.substr(tp);          // "THH:MM:SS±HH:MM" / "...Z"
+        if (tail.find('Z') == std::string::npos) {
+          size_t pp = tail.find_first_of("+-", 1);  // first +/- is the offset sign
+          if (pp != std::string::npos) {
+            int sgn = (tail[pp] == '-') ? -1 : 1;
+            int oh = 0, om = 0;
+            sscanf(tail.c_str() + pp + 1, "%d:%d", &oh, &om);
+            off_min = sgn * (oh * 60 + om);
+          }
+        }
+      }
+      // days since the Unix epoch (Howard Hinnant's civil-from-days algorithm)
+      long y = Y;
+      y -= (Mo <= 2);
+      long era = (y >= 0 ? y : y - 399) / 400;
+      unsigned yoe = (unsigned) (y - era * 400);
+      unsigned doy = (153u * (Mo + (Mo > 2 ? -3 : 9)) + 2u) / 5u + D - 1;
+      unsigned doe = yoe * 365u + yoe / 4u - yoe / 100u + doy;
+      long days = era * 146097L + (long) doe - 719468L;
+      time_t epoch = (time_t) (days * 86400L + h * 3600 + mi * 60 + s - off_min * 60);
+      // remember it (UTC) so ${uid}_reset_in_min can count down against now()
+      id(${uid}_reset_epoch) = (int) epoch;
+      // re-localize to the device timezone and emit HH:MM
+      ESPTime t = ESPTime::from_epoch_local(epoch);
+      char buf[8];
+      snprintf(buf, sizeof(buf), "%02d:%02d", t.hour, t.minute);
+      return std::string(buf);
