@@ -1,0 +1,164 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
+# Clawdmeter — animated Claude token-usage display (Home Assistant transport).
+#
+# vars:
+#   uid                  required  namespace prefix
+#   page_id              optional  parent page (default main_page)
+#   session_pct_entity   optional  default sensor.clawdmeter_session_pct
+#   session_reset_entity optional  default sensor.clawdmeter_session_reset_mins
+#   weekly_pct_entity    optional  default sensor.clawdmeter_weekly_pct
+#   weekly_reset_entity  optional  default sensor.clawdmeter_weekly_reset_mins
+#   status_entity        optional  default text_sensor.clawdmeter_status
+
+substitutions:
+  session_pct_entity:   ${session_pct_entity   | default("sensor.clawdmeter_session_pct")}
+  session_reset_entity: ${session_reset_entity | default("sensor.clawdmeter_session_reset_mins")}
+  weekly_pct_entity:    ${weekly_pct_entity    | default("sensor.clawdmeter_weekly_pct")}
+  weekly_reset_entity:  ${weekly_reset_entity  | default("sensor.clawdmeter_weekly_reset_mins")}
+  status_entity:        ${status_entity        | default("text_sensor.clawdmeter_status")}
+
+esphome:
+  includes:
+    - clawdmeter_engine.h
+  on_boot:
+    - priority: -100   # after LVGL + display are up
+      then:
+        - lambda: |-
+            clawd_init(id(${uid}_creature_root), ${screen_width}, ${screen_height});
+
+# Animation driver — advance frames + rotate within the usage group.
+interval:
+  - interval: 50ms
+    then:
+      - lambda: 'clawd_tick();'
+
+# ---- Usage data from Home Assistant ----------------------------------------
+sensor:
+  - platform: homeassistant
+    id: ${uid}_session_pct
+    entity_id: ${session_pct_entity}
+    on_value:
+      then:
+        - lambda: |-
+            clawd_set_usage(x,
+              (int) id(${uid}_session_reset).state,
+              id(${uid}_weekly_pct).state,
+              (int) id(${uid}_weekly_reset).state);
+        - script.execute: ${uid}_refresh_ui
+  - platform: homeassistant
+    id: ${uid}_session_reset
+    entity_id: ${session_reset_entity}
+    on_value:
+      then: [ script.execute: ${uid}_refresh_ui ]
+  - platform: homeassistant
+    id: ${uid}_weekly_pct
+    entity_id: ${weekly_pct_entity}
+    on_value:
+      then: [ script.execute: ${uid}_refresh_ui ]
+  - platform: homeassistant
+    id: ${uid}_weekly_reset
+    entity_id: ${weekly_reset_entity}
+    on_value:
+      then: [ script.execute: ${uid}_refresh_ui ]
+
+text_sensor:
+  - platform: homeassistant
+    id: ${uid}_status
+    entity_id: ${status_entity}
+    on_value:
+      then: [ script.execute: ${uid}_refresh_ui ]
+
+# Push current values into the LVGL chrome (arc + text). Pure formatting.
+script:
+  - id: ${uid}_refresh_ui
+    then:
+      - lvgl.arc.update:
+          id: ${uid}_session_arc
+          value: !lambda 'return id(${uid}_session_pct).has_state() ? id(${uid}_session_pct).state : 0;'
+      - lvgl.arc.update:
+          id: ${uid}_weekly_arc
+          value: !lambda 'return id(${uid}_weekly_pct).has_state() ? id(${uid}_weekly_pct).state : 0;'
+      - lvgl.label.update:
+          id: ${uid}_session_lbl
+          text: !lambda |-
+            int m = (int) id(${uid}_session_reset).state;
+            char buf[48];
+            snprintf(buf, sizeof(buf), "Session %d%%  ·  resets %dh%02dm",
+                     (int) id(${uid}_session_pct).state, m/60, m%60);
+            return std::string(buf);
+      - lvgl.label.update:
+          id: ${uid}_weekly_lbl
+          text: !lambda |-
+            int m = (int) id(${uid}_weekly_reset).state;
+            char buf[48];
+            snprintf(buf, sizeof(buf), "Weekly %d%%  ·  resets %dd%02dh",
+                     (int) id(${uid}_weekly_pct).state, m/1440, (m%1440)/60);
+            return std::string(buf);
+      - lvgl.label.update:
+          id: ${uid}_status_lbl
+          text: !lambda |-
+            return id(${uid}_status).has_state() ? id(${uid}_status).state : std::string("…");
+
+# ---- LVGL chrome: creature canvas host + arcs + labels ---------------------
+lvgl:
+  pages:
+    - id: !extend ${page_id | default("main_page")}
+      widgets:
+        # Plain obj that the engine attaches the creature canvas onto.
+        - obj:
+            id: ${uid}_creature_root
+            align: TOP_MID
+            y: 10
+            width: ${screen_width}
+            height: ${screen_width}   # square region for the creature
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+        # Session usage arc (graphical), bottom band.
+        - arc:
+            id: ${uid}_session_arc
+            align: BOTTOM_LEFT
+            x: 20
+            y: -90
+            width: 120
+            height: 120
+            min_value: 0
+            max_value: 100
+            value: 0
+            arc_color: $button_off_color
+            indicator:
+              arc_color: $button_on_color
+        - arc:
+            id: ${uid}_weekly_arc
+            align: BOTTOM_RIGHT
+            x: -20
+            y: -90
+            width: 120
+            height: 120
+            min_value: 0
+            max_value: 100
+            value: 0
+            arc_color: $button_off_color
+            indicator:
+              arc_color: steel_blue
+        - label:
+            id: ${uid}_session_lbl
+            align: BOTTOM_MID
+            y: -50
+            text_font: $text_font
+            text_color: $label_on_color
+            text: "Session —"
+        - label:
+            id: ${uid}_weekly_lbl
+            align: BOTTOM_MID
+            y: -26
+            text_font: $text_font
+            text_color: $label_on_color
+            text: "Weekly —"
+        - label:
+            id: ${uid}_status_lbl
+            align: BOTTOM_MID
+            y: -4
+            text_font: $text_font
+            text_color: $label_off_color
+            text: "…"
