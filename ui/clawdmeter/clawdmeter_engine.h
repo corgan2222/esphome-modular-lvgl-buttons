@@ -2,6 +2,7 @@
 #pragma once
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 
 // ---- monotonic time source -------------------------------------------------
 // ESPHome already provides esphome::millis(); declaring our own global millis()
@@ -60,6 +61,30 @@ inline int clawd_usage_group() {
   if (rate < CLAWD_RATE_THRESH_ACTIVE) return 1;
   if (rate < CLAWD_RATE_THRESH_HEAVY)  return 2;
   return 3;
+}
+
+// ---- ISO-8601 timestamp -> "minutes from now" -----------------------------
+// The HA Claude-usage reset_time sensors emit a UTC ISO-8601 string such as
+// "2026-06-17T06:30:00+00:00". Parse it and return whole minutes from
+// now_epoch until that instant, clamped at 0. Returns -1 when the string is
+// empty / unparseable. The trailing zone offset is ignored: HA emits "+00:00"
+// so the broken-down fields are treated as UTC, matching now_epoch (epoch UTC).
+inline int clawd_iso_minutes_from(const char* iso, long long now_epoch) {
+  if (!iso || !*iso) return -1;
+  int Y = 0, Mo = 0, D = 0, H = 0, Mi = 0, S = 0;
+  if (sscanf(iso, "%d-%d-%dT%d:%d:%d", &Y, &Mo, &D, &H, &Mi, &S) < 5) return -1;
+  if (Mo < 1 || Mo > 12 || D < 1 || D > 31) return -1;
+  // days_from_civil (Howard Hinnant), proleptic Gregorian, epoch 1970-01-01.
+  int y = Y - (Mo <= 2);
+  long era = (y >= 0 ? y : y - 399) / 400;
+  unsigned yoe = (unsigned)(y - era * 400);
+  unsigned doy = (153u * (unsigned)(Mo + (Mo > 2 ? -3 : 9)) + 2u) / 5u + (unsigned)D - 1u;
+  unsigned doe = yoe * 365u + yoe / 4u - yoe / 100u + doy;
+  long long days = era * 146097LL + (long long)doe - 719468LL;
+  long long target = days * 86400LL + (long long)H * 3600LL + (long long)Mi * 60LL + (long long)S;
+  long long diff = target - now_epoch;
+  if (diff < 0) diff = 0;
+  return (int)(diff / 60);
 }
 
 #ifndef CLAWD_RATE_ONLY  // ----- the rest needs LVGL + the data header -----
@@ -140,9 +165,21 @@ inline void pick_for_rate() {
 }
 }  // namespace clawd_detail
 
+// Create the creature canvas and fit it into `parent`. The canvas is a square
+// of CLAWD_GRID*g_cell px, sized from the parent's *measured* content box so the
+// creature scales to whatever region the YAML layout hands it — works on every
+// supported resolution/orientation without hardcoded pixels. screen_w/screen_h
+// are only a fallback for the rare case the layout isn't resolved yet.
 inline lv_obj_t* clawd_init(lv_obj_t* parent, int screen_w, int screen_h) {
   using namespace clawd_detail;
-  int min_dim = (screen_w < screen_h) ? screen_w : screen_h;
+  // Resolve the layout so the parent has a real size, then measure it.
+  lv_obj_update_layout(lv_obj_get_screen(parent));
+  int pw = lv_obj_get_content_width(parent);
+  int ph = lv_obj_get_content_height(parent);
+  if (pw <= 0) pw = screen_w;
+  if (ph <= 0) ph = screen_h;
+  int min_dim = (pw < ph) ? pw : ph;
+  if (min_dim <= 0) min_dim = (screen_w < screen_h) ? screen_w : screen_h;
   g_cell = min_dim / CLAWD_GRID;
   if (g_cell < 4) g_cell = 4;
   g_cw = CLAWD_GRID * g_cell;

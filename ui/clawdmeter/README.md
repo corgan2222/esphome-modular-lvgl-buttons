@@ -2,8 +2,15 @@
 
 ESPHome port of [Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter). Shows
 Claude token usage as a pixel-art creature whose animation changes with how fast
-you are burning tokens, plus session/weekly usage and reset times shown both
-graphically (arcs) and as text.
+you are burning tokens, plus session/weekly usage and reset times shown as two
+severity-coloured horizontal usage bars with text — like the original Clawdmeter
+display.
+
+The layout is fully resolution-agnostic: the page is split into a top creature
+region and a bottom stats panel, both sized by percentage. The engine measures
+the creature region at boot and fits a square pixel-art canvas into it, so the
+creature scales correctly on every supported display (170×320 → 800×1280) and
+both orientations — no hardcoded pixels.
 
 The original firmware pulled usage over BLE from a Python daemon. This port drops
 the daemon: it reads usage from **Home Assistant sensors** via the repo's
@@ -15,7 +22,7 @@ whatever scrapes your usage (HA template sensor, REST sensor, the
 
 | File | Purpose |
 |---|---|
-| `remote.yaml` | The component: HA sensors, LVGL chrome (canvas + arcs + labels), animation driver. Include this from a device config. |
+| `remote.yaml` | The component: HA sensors, LVGL chrome (canvas + usage bars + labels), animation driver. Include this from a device config. |
 | `clawdmeter_engine.h` | Header-only render + usage-rate engine, pulled in via `esphome.includes`. Exposes a small C API. |
 | `splash_animations.h` | Vendored, generated pixel-art animation data (13 animations, 20×20 grid, RGB565 palette). |
 | `tests/test_usage_rate.cpp` | Host (g++) unit test for the usage-rate state machine. |
@@ -29,14 +36,27 @@ whatever scrapes your usage (HA template sensor, REST sensor, the
 | Var | Default entity | Type | Meaning |
 |---|---|---|---|
 | `session_pct_entity` | `sensor.clawdmeter_session_pct` | 0–100 | % of the current session limit used. **Drives the animation.** |
-| `session_reset_entity` | `sensor.clawdmeter_session_reset_mins` | minutes | Time until the session limit resets. |
+| `session_reset_entity` | `sensor.clawdmeter_session_reset_time` | ISO-8601 timestamp | Instant the session limit resets, e.g. `2026-06-17T06:30:00+00:00`. |
 | `weekly_pct_entity` | `sensor.clawdmeter_weekly_pct` | 0–100 | % of the weekly limit used. |
-| `weekly_reset_entity` | `sensor.clawdmeter_weekly_reset_mins` | minutes | Time until the weekly limit resets. |
+| `weekly_reset_entity` | `sensor.clawdmeter_weekly_reset_time` | ISO-8601 timestamp | Instant the weekly limit resets. |
 | `status_entity` | `text_sensor.clawdmeter_status` | text | Free-form status line shown at the bottom. |
 
-Reset minutes are formatted for display as `Hh MMm` (session) and `Dd HHh`
-(weekly). Only `session_pct` feeds the rate machine; the rest are display-only and
-are read straight from the HA sensors in YAML.
+The `*_reset_entity` sensors carry the next reset **instant** as an ISO-8601 UTC
+string; the device converts it to minutes-from-now on-device via
+`clawd_iso_minutes_from()` (needs a time component with id `system_time`). The
+countdown is formatted as `resets in Hh MMm` (session) and `resets in Dd HHh`
+(weekly), and is omitted when the timestamp is missing/unparseable. Only
+`session_pct` feeds the rate machine; the rest are display-only.
+
+### Optional layout / colour vars
+
+| Var | Default | Meaning |
+|---|---|---|
+| `clawd_creature_h` | `60%` | Height of the top creature region. |
+| `clawd_stats_h` | `38%` | Height of the bottom stats panel. |
+| `clawd_bar_low` | `0x43A047` (green) | Bar fill colour when `< 50%`. |
+| `clawd_bar_mid` | `0xFFB300` (amber) | Bar fill colour `50–80%`. |
+| `clawd_bar_high` | `0xE53935` (red) | Bar fill colour `≥ 80%`. |
 
 ## Usage → animation mapping
 
@@ -60,7 +80,7 @@ so the creature stays calm right after boot or a reset.
 
 | Function | Purpose |
 |---|---|
-| `clawd_init(lv_obj_t* parent, int w, int h)` | Create the creature canvas on `parent`, sized for a `w×h` screen. Call from `on_boot` (priority `-100`, after LVGL is up). |
+| `clawd_init(lv_obj_t* parent, int w, int h)` | Create the creature canvas on `parent`. The canvas is sized from `parent`'s *measured* content box (resolution-agnostic); `w`/`h` are only a fallback if the layout isn't resolved yet. Call from `on_boot` (priority `-100`, after LVGL is up). |
 | `clawd_tick()` | Advance the animation. Call from a 50 ms `interval`. |
 | `clawd_set_usage(session_pct, session_reset, weekly_pct, weekly_reset)` | Feed a new sample; only `session_pct` is used. Call from the session sensor's `on_value`. |
 | `clawd_usage_sample(float)` / `clawd_usage_group()` | Lower-level sampler / current group accessor (used by the host test). |
