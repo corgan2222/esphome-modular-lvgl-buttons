@@ -1,0 +1,127 @@
+# esphome-modular-lvgl-buttons/example_code/sunton-esp32-2432s028-clawdmeter.yaml
+# Clawdmeter token-usage display — Sunton ESP32-2432S028 (320x240, rotation 0).
+# Smallest supported screen. The clawdmeter UI is resolution-agnostic: it
+# measures the creature region at boot and fits a square pixel-art canvas, so the
+# same include works on every supported display. See ui/clawdmeter/README.md.
+#
+# This board uses the split-theme package set (theme_style + color + glyphs) and
+# declares its fonts inline, like its sunton-esp32-2432s028-display_modular.yaml
+# sibling — not the all-in-one theme/index.yaml used by the larger boards.
+substitutions:
+  icon_font: mdi_icons_40
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+  # LCD back light modes - Code in backlight_time.yaml
+  display_daytime_brightness: "100%"
+  display_nighttime_brightness: "50%"
+  display_night_hour: "0"
+  display_night_minute: "0"
+  display_backlight_timeout_always_enabled: "false"
+  display_backlight_timeout_initial: "5"
+
+esphome:
+  name: "clawdmeter-2432s028"
+  friendly_name: "Clawdmeter 2432S028"
+  comment: "Clawdmeter token-usage display on Sunton ESP32-2432S028 (320x240)"
+
+api:
+
+logger:
+  level: debug
+
+text_sensor:
+  - platform: template
+    id: device_last_restart
+    name: 'Last Restart'
+    icon: mdi:clock
+    entity_category: diagnostic
+
+  - platform: version
+    id: esphome_version
+    name: 'ESPHome Version'
+    hide_timestamp: true
+    hide_hash: true
+    icon: mdi:source-branch
+    entity_category: diagnostic
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+packages:
+  wifi: !include esphome-modular-lvgl-buttons/common/wifi.yaml
+  ota_screen: !include esphome-modular-lvgl-buttons/common/ota.yaml
+  style:  !include esphome-modular-lvgl-buttons/common/theme/theme_style.yaml
+  colors: !include esphome-modular-lvgl-buttons/common/theme/color.yaml
+  glyphs: !include esphome-modular-lvgl-buttons/common/theme/mdi_glyph_substitutions.yaml
+  backlight: !include esphome-modular-lvgl-buttons/common/backlight_time.yaml
+  hardware: !include
+    file: esphome-modular-lvgl-buttons/hardware/sunton-esp32-2432s028.yaml
+    vars:
+      rotation: "0"
+
+  clawdmeter: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
+    vars:
+      uid: clawd
+
+lvgl:
+  pages:
+    - id: main_page
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []
+
+# This board has no all-in-one theme, so declare the fonts the UI needs inline.
+font:
+  - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
+    id: mdi_icons_40
+    size: 40
+    bpp: 8
+    glyphs: [
+      $mdi_bed,
+      $mdi_brightness_6,
+      $mdi_bulkhead_light,
+      $mdi_ceiling_fan_light,
+      $mdi_ceiling_light,
+      $mdi_chevron_down,
+      $mdi_chevron_up,
+      $mdi_circle_opacity,
+      $mdi_coach_lamp,
+      $mdi_eyedropper,
+      $mdi_floor_lamp,
+      $mdi_grid,
+      $mdi_home,
+      $mdi_information_box,
+      $mdi_lamp,
+      $mdi_led_strip,
+      $mdi_lightbulb,
+      $mdi_string_lights,
+      $mdi_track_light,
+      $mdi_white_balance_sunny,
+    ]
+
+  - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"
+    id: nunito_20
+    size: 20
+    bpp: 8
+
+  - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"
+    id: nunito_18
+    size: 18
+    bpp: 8
+
+  - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"
+    id: nunito_12
+    size: 12
+    bpp: 8

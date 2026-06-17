@@ -1,0 +1,62 @@
+# esphome-modular-lvgl-buttons/example_code/SDL-lvgl-clawdmeter_480px.yaml
+# Clawdmeter token-usage display — SDL desktop simulator (480x480 window).
+# Lets you preview the clawdmeter UI on a host without flashing hardware. The
+# clawdmeter UI is resolution-agnostic; change screen_width/screen_height below
+# to preview other resolutions. See ui/clawdmeter/README.md.
+#
+# Run with the host platform, e.g.:
+#   esphome run example_code/SDL-lvgl-clawdmeter_480px.yaml
+
+external_components:
+  - source: github://pr#12312
+    components: [font, image, lvgl]
+    refresh: 1h
+
+substitutions:
+  icon_font: mdi_icons_40
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+  # Screen Size — change these to preview a different resolution.
+  screen_height: '480'
+  screen_width: '480'
+
+esphome:
+  name: clawdmeter-sdl
+  friendly_name: Clawdmeter SDL
+
+logger:
+  level: debug
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+packages:
+  sensors: !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml
+  time:    !include esphome-modular-lvgl-buttons/common/time_homeassistant.yaml
+  theme:   !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  hardware: !include esphome-modular-lvgl-buttons/hardware/SDL-lvgl.yaml
+  loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
+  info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+
+  clawdmeter: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
+    vars:
+      uid: clawd
+
+lvgl:
+  pages:
+    - id: main_page
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []

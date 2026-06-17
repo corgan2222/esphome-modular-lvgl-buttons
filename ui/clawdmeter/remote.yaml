@@ -1,0 +1,276 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
+# Clawdmeter — animated Claude token-usage display (Home Assistant transport).
+#
+# vars:
+#   uid                  required  namespace prefix
+#   page_id              optional  parent page (default main_page)
+#   session_pct_entity   optional  HA sensor, numeric %   (default sensor.clawdmeter_session_pct)
+#   session_reset_entity optional  HA sensor, ISO-8601 UTC timestamp of next reset
+#                                  (default sensor.clawdmeter_session_reset_time)
+#   weekly_pct_entity    optional  HA sensor, numeric %   (default sensor.clawdmeter_weekly_pct)
+#   weekly_reset_entity  optional  HA sensor, ISO-8601 UTC timestamp of next reset
+#                                  (default sensor.clawdmeter_weekly_reset_time)
+#   status_entity        optional  HA sensor, free text   (default sensor.clawdmeter_status)
+#   clawd_creature_h     optional  height of the creature region (default "60%")
+#   clawd_stats_h        optional  height of the stats panel     (default "38%")
+#   clawd_bar_low        optional  bar fill colour  <50%  (default "0x43A047" green)
+#   clawd_bar_mid        optional  bar fill colour 50-80% (default "0xFFB300" amber)
+#   clawd_bar_high       optional  bar fill colour >=80%  (default "0xE53935" red)
+#
+# LAYOUT — fully resolution-agnostic. The page is split into two stacked regions
+# sized by *percentage*, so it scales from 170x320 up to 800x1280 with no
+# hardcoded pixels:
+#   • creature_root (top)  — the engine measures this box and fits a square
+#     pixel-art canvas into it (see clawd_init in clawdmeter_engine.h).
+#   • stats panel  (bottom) — a flex COLUMN with two horizontal usage bars
+#     (session + weekly) plus reset/status labels, mirroring the original
+#     Clawdmeter bar display.
+#
+# The *_reset_entity sensors carry the next reset *instant* as an ISO-8601
+# string (e.g. "2026-06-17T06:30:00+00:00"); the device converts it to minutes
+# from now on-device via clawd_iso_minutes_from() in clawdmeter_engine.h.
+# Requires a time component with id `system_time` (common/backlight_time.yaml
+# or common/time_homeassistant.yaml provides it).
+
+substitutions:
+  session_pct_entity:   ${session_pct_entity   | default("sensor.clawdmeter_session_pct")}
+  session_reset_entity: ${session_reset_entity | default("sensor.clawdmeter_session_reset_time")}
+  weekly_pct_entity:    ${weekly_pct_entity    | default("sensor.clawdmeter_weekly_pct")}
+  weekly_reset_entity:  ${weekly_reset_entity  | default("sensor.clawdmeter_weekly_reset_time")}
+  status_entity:        ${status_entity        | default("sensor.clawdmeter_status")}
+  clawd_creature_h:     ${clawd_creature_h     | default("60%")}
+  clawd_stats_h:        ${clawd_stats_h        | default("38%")}
+  clawd_bar_low:        ${clawd_bar_low        | default("0x43A047")}
+  clawd_bar_mid:        ${clawd_bar_mid        | default("0xFFB300")}
+  clawd_bar_high:       ${clawd_bar_high       | default("0xE53935")}
+
+esphome:
+  includes:
+    - esphome-modular-lvgl-buttons/ui/clawdmeter/clawdmeter_engine.h
+    - esphome-modular-lvgl-buttons/ui/clawdmeter/splash_animations.h
+  on_boot:
+    - priority: -100   # after LVGL + display are up
+      then:
+        - lambda: |-
+            clawd_init(id(${uid}_creature_root), ${screen_width}, ${screen_height});
+        - script.execute: ${uid}_refresh_ui
+
+# Animation driver — advance frames + rotate within the usage group.
+interval:
+  - interval: 50ms
+    then:
+      - lambda: 'clawd_tick();'
+
+# ---- Usage data from Home Assistant ----------------------------------------
+sensor:
+  - platform: homeassistant
+    id: ${uid}_session_pct
+    entity_id: ${session_pct_entity}
+    on_value:
+      then:
+        - lambda: |-
+            clawd_set_usage(x,
+              (int) id(${uid}_session_reset).state,
+              id(${uid}_weekly_pct).state,
+              (int) id(${uid}_weekly_reset).state);
+        - script.execute: ${uid}_refresh_ui
+  - platform: homeassistant
+    id: ${uid}_weekly_pct
+    entity_id: ${weekly_pct_entity}
+    on_value:
+      then:
+        - script.execute: ${uid}_refresh_ui
+  # Reset times arrive as ISO-8601 UTC strings; convert to minutes-from-now
+  # on-device. The template sensors recompute every 60s so the countdown stays
+  # live, and immediately whenever HA pushes a fresh timestamp.
+  - platform: template
+    id: ${uid}_session_reset
+    internal: true
+    update_interval: 60s
+    lambda: |-
+      auto t = id(system_time).now();
+      if (!t.is_valid() || !id(${uid}_session_reset_iso).has_state()) return NAN;
+      int m = clawd_iso_minutes_from(id(${uid}_session_reset_iso).state.c_str(),
+                                     (long long) t.timestamp);
+      if (m < 0) return NAN;
+      return (float) m;
+    on_value:
+      then:
+        - script.execute: ${uid}_refresh_ui
+  - platform: template
+    id: ${uid}_weekly_reset
+    internal: true
+    update_interval: 60s
+    lambda: |-
+      auto t = id(system_time).now();
+      if (!t.is_valid() || !id(${uid}_weekly_reset_iso).has_state()) return NAN;
+      int m = clawd_iso_minutes_from(id(${uid}_weekly_reset_iso).state.c_str(),
+                                     (long long) t.timestamp);
+      if (m < 0) return NAN;
+      return (float) m;
+    on_value:
+      then:
+        - script.execute: ${uid}_refresh_ui
+
+text_sensor:
+  # Raw ISO timestamps from HA; feed the template sensors above.
+  - platform: homeassistant
+    id: ${uid}_session_reset_iso
+    entity_id: ${session_reset_entity}
+    on_value:
+      then:
+        - component.update: ${uid}_session_reset
+  - platform: homeassistant
+    id: ${uid}_weekly_reset_iso
+    entity_id: ${weekly_reset_entity}
+    on_value:
+      then:
+        - component.update: ${uid}_weekly_reset
+  - platform: homeassistant
+    id: ${uid}_status
+    entity_id: ${status_entity}
+    on_value:
+      then:
+        - script.execute: ${uid}_refresh_ui
+
+# Push current values into the LVGL chrome (bars + text). Pure formatting.
+script:
+  - id: ${uid}_refresh_ui
+    then:
+      # --- session bar: value + severity colour -----------------------------
+      - lvgl.bar.update:
+          id: ${uid}_session_bar
+          value: !lambda 'return id(${uid}_session_pct).has_state() ? id(${uid}_session_pct).state : 0;'
+      - lambda: |-
+          float p = id(${uid}_session_pct).has_state() ? id(${uid}_session_pct).state : 0.0f;
+          lv_color_t c = (p >= 80) ? lv_color_hex(${clawd_bar_high})
+                       : (p >= 50) ? lv_color_hex(${clawd_bar_mid})
+                                   : lv_color_hex(${clawd_bar_low});
+          lv_obj_set_style_bg_color(id(${uid}_session_bar), c, LV_PART_INDICATOR);
+      # --- weekly bar: value + severity colour ------------------------------
+      - lvgl.bar.update:
+          id: ${uid}_weekly_bar
+          value: !lambda 'return id(${uid}_weekly_pct).has_state() ? id(${uid}_weekly_pct).state : 0;'
+      - lambda: |-
+          float p = id(${uid}_weekly_pct).has_state() ? id(${uid}_weekly_pct).state : 0.0f;
+          lv_color_t c = (p >= 80) ? lv_color_hex(${clawd_bar_high})
+                       : (p >= 50) ? lv_color_hex(${clawd_bar_mid})
+                                   : lv_color_hex(${clawd_bar_low});
+          lv_obj_set_style_bg_color(id(${uid}_weekly_bar), c, LV_PART_INDICATOR);
+      # --- labels (NAN-guarded reset countdowns) ----------------------------
+      - lvgl.label.update:
+          id: ${uid}_session_lbl
+          text: !lambda |-
+            int p = id(${uid}_session_pct).has_state() ? (int) id(${uid}_session_pct).state : 0;
+            float r = id(${uid}_session_reset).state;
+            char buf[48];
+            if (std::isnan(r)) {
+              snprintf(buf, sizeof(buf), "Current  %d%%", p);
+            } else {
+              int m = (int) r;
+              snprintf(buf, sizeof(buf), "Current  %d%%   ·   resets in %dh%02dm",
+                       p, m / 60, m % 60);
+            }
+            return std::string(buf);
+      - lvgl.label.update:
+          id: ${uid}_weekly_lbl
+          text: !lambda |-
+            int p = id(${uid}_weekly_pct).has_state() ? (int) id(${uid}_weekly_pct).state : 0;
+            float r = id(${uid}_weekly_reset).state;
+            char buf[48];
+            if (std::isnan(r)) {
+              snprintf(buf, sizeof(buf), "Weekly  %d%%", p);
+            } else {
+              int m = (int) r;
+              snprintf(buf, sizeof(buf), "Weekly  %d%%   ·   resets in %dd%02dh",
+                       p, m / 1440, (m % 1440) / 60);
+            }
+            return std::string(buf);
+      - lvgl.label.update:
+          id: ${uid}_status_lbl
+          text: !lambda |-
+            return id(${uid}_status).has_state() ? id(${uid}_status).state : std::string("");
+
+# ---- LVGL chrome: creature canvas host + usage bars + labels ---------------
+# No hardcoded pixels: regions are percentage-sized, the stats panel is a flex
+# column, and bar widths are 100% of their (percentage-sized) parent.
+lvgl:
+  pages:
+    - id: !extend ${page_id | default("main_page")}
+      widgets:
+        # Top region — the engine measures this box and centres a square
+        # pixel-art canvas inside it. Sizing it by % keeps the creature in
+        # proportion on every supported display.
+        - obj:
+            id: ${uid}_creature_root
+            align: TOP_MID
+            width: 100%
+            height: ${clawd_creature_h}
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+        # Bottom region — usage bars + labels, original Clawdmeter style.
+        - obj:
+            id: ${uid}_stats
+            align: BOTTOM_MID
+            width: 94%
+            height: ${clawd_stats_h}
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            layout:
+              type: flex
+              flex_flow: COLUMN
+              flex_align_main: CENTER
+              flex_align_cross: CENTER
+              pad_row: 4
+            widgets:
+              - label:
+                  id: ${uid}_session_lbl
+                  width: 100%
+                  text_font: $text_font
+                  text_color: $label_on_color
+                  text_align: LEFT
+                  text: "Current  —"
+              - bar:
+                  id: ${uid}_session_bar
+                  width: 100%
+                  height: 18
+                  radius: 6
+                  min_value: 0
+                  max_value: 100
+                  value: 0
+                  animated: true
+                  bg_color: $button_off_color
+                  bg_opa: COVER
+                  indicator:
+                    radius: 6
+                    bg_color: $button_on_color
+              - label:
+                  id: ${uid}_weekly_lbl
+                  width: 100%
+                  text_font: $text_font
+                  text_color: $label_on_color
+                  text_align: LEFT
+                  text: "Weekly  —"
+              - bar:
+                  id: ${uid}_weekly_bar
+                  width: 100%
+                  height: 18
+                  radius: 6
+                  min_value: 0
+                  max_value: 100
+                  value: 0
+                  animated: true
+                  bg_color: $button_off_color
+                  bg_opa: COVER
+                  indicator:
+                    radius: 6
+                    bg_color: steel_blue
+              - label:
+                  id: ${uid}_status_lbl
+                  width: 100%
+                  text_font: $text_font
+                  text_color: $label_off_color
+                  text_align: CENTER
+                  text: ""
