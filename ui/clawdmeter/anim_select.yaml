@@ -22,10 +22,11 @@
 # The picker lives in the ESPHome dashboard / HA device page, NOT on the LVGL
 # display (the creature itself stays the only Clawdmeter thing drawn on screen).
 #
-# Option index 0 = "Automatisch" -> clawd_set_anim_mode(-1).
-# Option index N (1..13) -> clawd_set_anim_mode(N-1) i.e. that animation.
-# The 13 names below MUST stay in the same order as splash_anims[] so the
-# option indices line up with the engine indices.
+# Option index 0 = "Automatisch" -> clawd_set_anim_mode(-1) (usage-driven auto).
+# Option index 1 = "Random"      -> clawd_set_anim_mode(-2) (random clip / 5s).
+# Option index N (2..14) -> clawd_set_anim_mode(N-2) i.e. that animation.
+# The 13 animation names below MUST stay in the same order as splash_anims[] so
+# the option indices line up with the engine indices.
 #
 # Requires ui/clawdmeter/engine.yaml to be included once in the same config.
 #
@@ -44,6 +45,7 @@ select:
     restore_value: true
     options:
       - "Automatisch"
+      - "Random"
       - "idle breathe"
       - "idle blink"
       - "idle look around"
@@ -60,7 +62,8 @@ select:
     initial_option: "Automatisch"
     on_value:
       then:
-        - lambda: 'clawd_set_anim_mode((int) i - 1);'
+        # i=0 "Automatisch" -> -1 (auto), i=1 "Random" -> -2, i>=2 -> i-2 (clip).
+        - lambda: 'clawd_set_anim_mode(i == 0 ? -1 : i == 1 ? -2 : (int) i - 2);'
 
 sensor:
   # Auto-mode decision bucket: 0 idle / 1 normal / 2 active / 3 heavy. Watch

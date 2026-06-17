@@ -158,8 +158,16 @@ namespace clawd_detail {
 #define CLAWD_GRID 20
 #define CLAWD_COL_EMPTY 0x0000
 #define CLAWD_ROTATE_MS 20000
+// "Random" mode (g_anim_mode == CLAWD_ANIM_RANDOM) rotates to a new random clip
+// on this faster cadence instead of the usage-driven 20s interval.
+#define CLAWD_RANDOM_MS 5000
 #define CLAWD_GROUP_COUNT 4
 #define CLAWD_GROUP_MAX   4
+
+// Animation-mode sentinels (see g_anim_mode below). Non-negative values are a
+// forced 0-based index into splash_anims[].
+#define CLAWD_ANIM_AUTO   (-1)  // usage-driven auto-pick
+#define CLAWD_ANIM_RANDOM (-2)  // cycle a random clip every CLAWD_RANDOM_MS
 
 static lv_obj_t *g_canvas   = nullptr;
 static uint16_t *g_canvasbuf = nullptr;
@@ -167,9 +175,10 @@ static uint16_t *g_rowbuf    = nullptr;
 static int       g_cell = 24, g_cw = 480, g_ch = 480;
 static uint16_t  g_cur_anim = 0, g_cur_frame = 0;
 static uint32_t  g_frame_started = 0, g_last_pick = 0;
-// Animation selection mode: -1 = automatic (driven by usage group/rate);
-// 0..SPLASH_ANIM_COUNT-1 = forced to that specific animation index.
-static int       g_anim_mode = -1;
+// Animation selection mode: CLAWD_ANIM_AUTO (-1) = automatic (driven by usage
+// group/rate); CLAWD_ANIM_RANDOM (-2) = cycle a random clip every
+// CLAWD_RANDOM_MS; 0..SPLASH_ANIM_COUNT-1 = forced to that specific index.
+static int       g_anim_mode = CLAWD_ANIM_AUTO;
 
 static int8_t  g_group_lists[CLAWD_GROUP_COUNT][CLAWD_GROUP_MAX];
 static uint8_t g_group_size[CLAWD_GROUP_COUNT] = {0};
@@ -214,6 +223,24 @@ inline void render_frame(const uint8_t *cells, const uint16_t *palette) {
 
 inline void pick_for_rate() {
   if (SPLASH_ANIM_COUNT == 0) return;
+  // Random mode: jump to a random clip (avoiding an immediate repeat) and start
+  // it at frame 0. Refresh g_last_pick so clawd_tick()'s rate gate measures the
+  // CLAWD_RANDOM_MS interval from this pick.
+  if (g_anim_mode == CLAWD_ANIM_RANDOM) {
+    g_last_pick = clawd_now();
+    uint16_t idx = g_cur_anim;
+    if (SPLASH_ANIM_COUNT > 1) {
+      do { idx = (uint16_t)(rand() % SPLASH_ANIM_COUNT); } while (idx == g_cur_anim);
+    } else {
+      idx = 0;
+    }
+    g_cur_anim = idx;
+    g_cur_frame = 0;
+    g_frame_started = clawd_now();
+    const splash_anim_def_t *a = &splash_anims[g_cur_anim];
+    render_frame(a->frames[0], a->palette);
+    return;
+  }
   // Manual override: hold the chosen animation. Refresh g_last_pick so the
   // 20s auto-rotate never fires, and only (re)start the clip when it changes
   // so a running animation isn't reset to frame 0 every rotate interval.
@@ -288,7 +315,9 @@ inline lv_obj_t* clawd_init(lv_obj_t* parent, int screen_w, int screen_h) {
 inline void clawd_tick() {
   using namespace clawd_detail;
   if (!g_canvas || SPLASH_ANIM_COUNT == 0) return;
-  if (clawd_now() - g_last_pick >= CLAWD_ROTATE_MS) pick_for_rate();
+  uint32_t rotate_gate = (g_anim_mode == CLAWD_ANIM_RANDOM) ? CLAWD_RANDOM_MS
+                                                            : CLAWD_ROTATE_MS;
+  if (clawd_now() - g_last_pick >= rotate_gate) pick_for_rate();
   const splash_anim_def_t *a = &splash_anims[g_cur_anim];
   if (a->frame_count == 0) return;
   uint16_t hold = a->holds[g_cur_frame];
@@ -312,11 +341,13 @@ inline void clawd_set_usage(float session_pct, int session_reset_mins,
 }
 
 // ---- Animation selection API (manual override / auto) ----------------------
-// Set the animation mode: -1 = automatic (usage-driven), or a 0-based index
-// into splash_anims[] to force a specific animation. Applies immediately.
+// Set the animation mode: CLAWD_ANIM_AUTO (-1) = automatic (usage-driven),
+// CLAWD_ANIM_RANDOM (-2) = cycle a random clip every CLAWD_RANDOM_MS, or a
+// 0-based index into splash_anims[] to force a specific animation. Applies
+// immediately. Out-of-range values fall back to auto.
 inline void clawd_set_anim_mode(int mode) {
   using namespace clawd_detail;
-  if (mode < -1 || mode >= SPLASH_ANIM_COUNT) mode = -1;
+  if (mode < CLAWD_ANIM_RANDOM || mode >= SPLASH_ANIM_COUNT) mode = CLAWD_ANIM_AUTO;
   g_anim_mode = mode;
   pick_for_rate();  // apply now (auto re-picks by rate; forced jumps to clip)
 }
