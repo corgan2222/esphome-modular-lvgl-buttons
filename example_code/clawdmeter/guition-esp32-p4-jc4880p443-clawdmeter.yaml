@@ -1,8 +1,4 @@
-# esphome-modular-lvgl-buttons/example_code/waveshare-esp32-p4-86-panel-clawdmeter.yaml
-# Clawdmeter token-usage display — Waveshare ESP32-P4 86-Panel (720x720, rotation 0).
-# The clawdmeter UI is resolution-agnostic: it measures the creature region at
-# boot and fits a square pixel-art canvas, so the same include works on every
-# supported display. See ui/clawdmeter/README.md.
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter.yaml
 substitutions:
   icon_font: mdi_icons_40
   text_font: nunito_20
@@ -17,15 +13,19 @@ substitutions:
   button_text_color: "white"
 
 esphome:
-  name: "clawdmeter-86-panel"
-  friendly_name: "Clawdmeter 86 Panel"
-  comment: "Clawdmeter token-usage display on Waveshare ESP32-P4 86-Panel (720x720)"
+  name: "clawdmeter-p4"
+  friendly_name: "Clawdmeter P4"
+  comment: "Clawdmeter token-usage display on Guition ESP32-P4 JC4880P443"
 
 logger:
   level: debug
   logs:
     lvgl: info
   hardware_uart: UART0
+
+image:
+  defaults:
+    byte_order: little_endian
 
 script:
   - id: time_update
@@ -39,9 +39,9 @@ packages:
   theme:   !include esphome-modular-lvgl-buttons/common/theme/index.yaml
   backlight: !include esphome-modular-lvgl-buttons/common/backlight_time.yaml
   hardware: !include
-    file: esphome-modular-lvgl-buttons/hardware/waveshare-esp32-p4-86-panel.yaml
+    file: esphome-modular-lvgl-buttons/hardware/guition-esp32-p4-jc4880p443.yaml
     vars:
-      rotation: "0"
+      rotation: "90"
   loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
   info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
 

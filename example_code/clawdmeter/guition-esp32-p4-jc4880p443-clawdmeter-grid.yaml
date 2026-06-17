@@ -1,4 +1,4 @@
-# esphome-modular-lvgl-buttons/example_code/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml
 #
 # Clawdmeter composed from INDIVIDUAL grid tiles (not the full-screen all-in-one
 # remote.yaml). Each element is its own package and places itself into one cell

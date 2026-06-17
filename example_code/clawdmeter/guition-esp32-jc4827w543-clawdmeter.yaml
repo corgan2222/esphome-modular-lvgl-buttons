@@ -1,4 +1,8 @@
-# esphome-modular-lvgl-buttons/example_code/guition-esp32-p4-jc4880p443-clawdmeter.yaml
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/guition-esp32-jc4827w543-clawdmeter.yaml
+# Clawdmeter token-usage display — Guition ESP32 JC4827W543 (480x272, rotation 180).
+# The clawdmeter UI is resolution-agnostic: it measures the creature region at
+# boot and fits a square pixel-art canvas, so the same include works on every
+# supported display. See ui/clawdmeter/README.md.
 substitutions:
   icon_font: mdi_icons_40
   text_font: nunito_20
@@ -13,19 +17,12 @@ substitutions:
   button_text_color: "white"
 
 esphome:
-  name: "clawdmeter-p4"
-  friendly_name: "Clawdmeter P4"
-  comment: "Clawdmeter token-usage display on Guition ESP32-P4 JC4880P443"
+  name: "clawdmeter-jc4827w543"
+  friendly_name: "Clawdmeter JC4827W543"
+  comment: "Clawdmeter token-usage display on Guition ESP32 JC4827W543 (480x272)"
 
 logger:
   level: debug
-  logs:
-    lvgl: info
-  hardware_uart: UART0
-
-image:
-  defaults:
-    byte_order: little_endian
 
 script:
   - id: time_update
@@ -39,9 +36,9 @@ packages:
   theme:   !include esphome-modular-lvgl-buttons/common/theme/index.yaml
   backlight: !include esphome-modular-lvgl-buttons/common/backlight_time.yaml
   hardware: !include
-    file: esphome-modular-lvgl-buttons/hardware/guition-esp32-p4-jc4880p443.yaml
+    file: esphome-modular-lvgl-buttons/hardware/guition-esp32-jc4827w543.yaml
     vars:
-      rotation: "90"
+      rotation: "180"
   loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
   info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
 

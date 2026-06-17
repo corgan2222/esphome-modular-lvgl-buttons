@@ -1,11 +1,11 @@
-# esphome-modular-lvgl-buttons/example_code/SDL-lvgl-clawdmeter_480px.yaml
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/SDL-lvgl-clawdmeter_480px.yaml
 # Clawdmeter token-usage display — SDL desktop simulator (480x480 window).
 # Lets you preview the clawdmeter UI on a host without flashing hardware. The
 # clawdmeter UI is resolution-agnostic; change screen_width/screen_height below
 # to preview other resolutions. See ui/clawdmeter/README.md.
 #
 # Run with the host platform, e.g.:
-#   esphome run example_code/SDL-lvgl-clawdmeter_480px.yaml
+#   esphome run example_code/clawdmeter/SDL-lvgl-clawdmeter_480px.yaml
 
 external_components:
   - source: github://pr#12312

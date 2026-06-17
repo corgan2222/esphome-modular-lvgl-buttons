@@ -92,7 +92,7 @@ so the creature stays calm right after boot or a reset.
 ## Usage
 
 Add to a device config (see
-`example_code/guition-esp32-p4-jc4880p443-clawdmeter.yaml`):
+`example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter.yaml`):
 
 ```yaml
 packages:

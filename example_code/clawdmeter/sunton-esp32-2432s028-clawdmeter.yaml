@@ -1,4 +1,4 @@
-# esphome-modular-lvgl-buttons/example_code/sunton-esp32-2432s028-clawdmeter.yaml
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/sunton-esp32-2432s028-clawdmeter.yaml
 # Clawdmeter token-usage display — Sunton ESP32-2432S028 (320x240, rotation 0).
 # Smallest supported screen. The clawdmeter UI is resolution-agnostic: it
 # measures the creature region at boot and fits a square pixel-art canvas, so the
