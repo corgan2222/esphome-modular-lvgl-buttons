@@ -49,6 +49,14 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
     vars:
       uid: clawd
+      # Square panel: split the layout over two pages so neither the creature
+      # nor the stats are cramped. Page 1 = creature (full screen), page 2 =
+      # stats, reachable by swiping right (see swipe_navigation below).
+      stats_page_id: stats_page
+      clawd_margin_top: "4%"
+      clawd_creature_h: "92%"
+      clawd_stats_h: "92%"
+      clawd_stats_align: CENTER
 
 lvgl:
   pages:
@@ -56,3 +64,9 @@ lvgl:
       styles: page_style
       bg_color: $bg_color
       widgets: []
+      <<: !include esphome-modular-lvgl-buttons/common/swipe_navigation.yaml
+    - id: stats_page
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []
+      <<: !include esphome-modular-lvgl-buttons/common/swipe_navigation.yaml

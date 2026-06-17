@@ -35,6 +35,10 @@
 #   refresh_sec        optional  repaint cadence in seconds (default 3)
 #   stat_font          optional  label font, used by every row incl. the burn
 #                                 line (default nunito_18)
+#   side_margin        optional  left+right inner padding in px, applied
+#                                 SYMMETRICALLY. When unset the panel keeps its
+#                                 default 14/18 split; set it to give the panel an
+#                                 even gap to both screen edges (e.g. portrait).
 # NOTE: each *_entity default is a deliberately invalid SET_ME_* placeholder —
 # bind the real HA entities from your device YAML via `vars:`, never edit this
 # file. A missing binding then reads as "unavailable" instead of a wrong id.
@@ -185,8 +189,8 @@ lvgl:
             grid_cell_y_align: stretch
             bg_opa: TRANSP
             border_width: 0
-            pad_left: 14
-            pad_right: 18
+            pad_left: ${side_margin | default(14)}
+            pad_right: ${side_margin | default(18)}
             pad_top: 10
             pad_bottom: 10
             layout:

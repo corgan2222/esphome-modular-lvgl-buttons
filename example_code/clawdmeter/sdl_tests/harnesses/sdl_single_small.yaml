@@ -1,0 +1,73 @@
+# Reusable SDL test harness — single-page Clawdmeter, SMALL screen variant.
+#
+# Identical to sdl_single.yaml but mirrors the layout overrides the smallest
+# supported display (Sunton ESP32-2432S028, 320x240) applies in its device
+# config: a 14px label font plus a taller stats panel, so the three labels and
+# two usage bars are not cramped under the creature. Keep this in sync with
+# example_code/clawdmeter/sunton-esp32-2432s028-clawdmeter.yaml.
+#
+# See sdl_single.yaml for why loading.yaml is dropped and why screenshots are
+# captured out-of-band by capture.py rather than an in-firmware endpoint.
+
+external_components:
+  - source: github://pr#12312
+    components: [font, image, lvgl]
+    refresh: 1h
+
+substitutions:
+  icon_font: mdi_icons_40
+  text_font: nunito_14
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+  # Screen size — override with -s screen_width / -s screen_height per display.
+  screen_height: '240'
+  screen_width: '320'
+
+esphome:
+  name: clawdmeter-sdl
+  friendly_name: Clawdmeter SDL
+  on_boot:
+    - priority: -200
+      then:
+        - lvgl.page.show: main_page
+
+logger:
+  level: info
+
+api:
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+packages:
+  sensors:  !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml
+  time:     !include esphome-modular-lvgl-buttons/common/time_homeassistant.yaml
+  theme:    !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  hardware: !include esphome-modular-lvgl-buttons/hardware/SDL-lvgl.yaml
+  info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+
+  clawdmeter: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
+    vars:
+      uid: clawd
+      # Mirror the Sunton 320x240 device overrides.
+      clawd_margin_top: "2%"
+      clawd_creature_h: "46%"
+      clawd_stats_h: "50%"
+
+lvgl:
+  pages:
+    - id: main_page
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []

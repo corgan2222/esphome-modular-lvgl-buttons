@@ -23,8 +23,15 @@ static inline uint32_t clawd_now() { return esphome::millis(); }
 #define CLAWD_RATE_THRESH_NORMAL  0.10f
 #define CLAWD_RATE_THRESH_ACTIVE  0.20f
 #define CLAWD_RATE_THRESH_HEAVY   0.33f
-#define CLAWD_MIN_WINDOW_MS       240000UL
-#define CLAWD_RING_SIZE           6
+#define CLAWD_MIN_WINDOW_MS       120000UL   // 2 min: warm up faster after a reset
+#define CLAWD_RING_SIZE           12         // ~24-36 min of history at HA's 2-3 min cadence
+// Reconnect debounce: the HA `homeassistant` sensor re-publishes the current
+// value on every API (re)connect, so a flapping connection delivers a BURST of
+// identical-value samples within a few ms of each other. Left unchecked those
+// bursts fill the ring with near-identical timestamps, collapsing the window
+// below CLAWD_MIN_WINDOW_MS and flapping the creature back to "warming up".
+// Ignore any sample that arrives within this gap of the last stored one.
+#define CLAWD_MIN_SAMPLE_GAP_MS   15000UL
 
 namespace clawd_detail {
 struct Sample { uint32_t ms; float pct; };
@@ -40,7 +47,11 @@ inline void clawd_usage_sample(float session_pct) {
   uint32_t now = clawd_now();
   if (g_count > 0) {
     uint8_t latest = (g_head + CLAWD_RING_SIZE - 1) % CLAWD_RING_SIZE;
-    if (session_pct + 5.0f < g_ring[latest].pct) rate_reset();  // session reset
+    if (session_pct + 5.0f < g_ring[latest].pct) {
+      rate_reset();  // session reset: a real drop always restarts tracking
+    } else if (now - g_ring[latest].ms < CLAWD_MIN_SAMPLE_GAP_MS) {
+      return;        // reconnect burst: ignore samples that arrive too close together
+    }
   }
   g_ring[g_head] = { now, session_pct };
   g_head = (g_head + 1) % CLAWD_RING_SIZE;
@@ -133,7 +144,15 @@ inline int clawd_iso_minutes_from(const char* iso, long long now_epoch) {
 #ifndef CLAWD_RATE_ONLY  // ----- the rest needs LVGL + the data header -----
 #include "esphome/components/lvgl/lvgl_proxy.h"   // pulls in lvgl.h types
 #include "splash_animations.h"
-#include <esp_heap_caps.h>
+#include <cstdlib>
+// On ESP targets the canvas buffer is placed in PSRAM via the ESP-IDF heap API.
+// The SDL/host build has neither esp_heap_caps.h nor PSRAM, so fall back to a
+// plain malloc there. __has_include keeps this self-contained — no reliance on
+// ESPHome's USE_* defines being visible at this include point.
+#if defined(__has_include) && __has_include(<esp_heap_caps.h>)
+#  include <esp_heap_caps.h>
+#  define CLAWD_HAS_PSRAM 1
+#endif
 
 namespace clawd_detail {
 #define CLAWD_GRID 20
@@ -244,8 +263,14 @@ inline lv_obj_t* clawd_init(lv_obj_t* parent, int screen_w, int screen_h) {
   if (g_cell < 4) g_cell = 4;
   g_cw = CLAWD_GRID * g_cell;
   g_ch = CLAWD_GRID * g_cell;
+#ifdef CLAWD_HAS_PSRAM
   g_canvasbuf = (uint16_t*)heap_caps_malloc(g_cw * g_ch * 2, MALLOC_CAP_SPIRAM);
   g_rowbuf    = (uint16_t*)heap_caps_malloc(g_cw * 2,        MALLOC_CAP_SPIRAM);
+#else
+  // SDL/host build: no PSRAM, plain heap is fine for the small canvas buffer.
+  g_canvasbuf = (uint16_t*)malloc(g_cw * g_ch * 2);
+  g_rowbuf    = (uint16_t*)malloc(g_cw * 2);
+#endif
   if (!g_canvasbuf || !g_rowbuf) return nullptr;
   g_canvas = lv_canvas_create(parent);
   lv_canvas_set_buffer(g_canvas, g_canvasbuf, g_cw, g_ch, LV_COLOR_FORMAT_RGB565);

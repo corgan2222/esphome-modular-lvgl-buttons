@@ -3,7 +3,19 @@
 #
 # vars:
 #   uid                  required  namespace prefix
-#   page_id              optional  parent page (default main_page)
+#   page_id              optional  parent page (default main_page) — hosts the
+#                                  creature
+#   stats_page_id        optional  page that hosts the stats panel
+#                                  (default = page_id). Leave unset for the
+#                                  classic single-page layout (creature + stats
+#                                  stacked on one screen). Set it to a SECOND
+#                                  page id to split the layout across two pages —
+#                                  creature on page_id, stats on stats_page_id.
+#                                  Square displays use this (page 1 = creature,
+#                                  page 2 = stats) together with
+#                                  common/swipe_navigation.yaml to switch pages.
+#                                  The device YAML must declare that second page
+#                                  in its own `lvgl: pages:` list.
 # NOTE: every *_entity default below is a deliberately invalid SET_ME_*
 # placeholder. Bind the real Home Assistant entities from your device YAML via
 # `vars:` — never edit this file. A missing binding then shows up as
@@ -17,6 +29,15 @@
 #   status_entity        optional  HA sensor, free text   (default sensor.SET_ME_status)
 #   clawd_creature_h     optional  height of the creature region (default "60%")
 #   clawd_stats_h        optional  height of the stats panel     (default "38%")
+#   clawd_stats_w        optional  width of the stats panel — sets the even
+#                                  left+right margin to the screen edges
+#                                  (default "88%" = ~6%/side, matching the
+#                                  creature inset and the grid side_margin)
+#   clawd_stats_align    optional  LVGL align of the stats panel on its page
+#                                  (default "BOTTOM_MID" — sits under the
+#                                  creature in the single-page layout). Set to
+#                                  "CENTER" on the two-page split so the stats
+#                                  are vertically centred on their own page.
 #   clawd_margin_top     optional  gap between the top display edge and the
 #                                  creature — px ("16") or percent ("4%") of the
 #                                  page height; default "0". Applied as a `y`
@@ -42,6 +63,11 @@
 # or common/time_homeassistant.yaml provides it).
 
 substitutions:
+  page_id:              ${page_id              | default("main_page")}
+  # Stats default onto the same page as the creature → single-page layout
+  # (unchanged behaviour). Override with a second page id for the two-page
+  # split used by square displays.
+  stats_page_id:        ${stats_page_id        | default(page_id)}
   session_pct_entity:   ${session_pct_entity   | default("sensor.SET_ME_session_usage")}
   session_reset_entity: ${session_reset_entity | default("sensor.SET_ME_session_reset_time")}
   weekly_pct_entity:    ${weekly_pct_entity    | default("sensor.SET_ME_week_usage")}
@@ -49,6 +75,8 @@ substitutions:
   status_entity:        ${status_entity        | default("sensor.SET_ME_status")}
   clawd_creature_h:     ${clawd_creature_h     | default("60%")}
   clawd_stats_h:        ${clawd_stats_h        | default("38%")}
+  clawd_stats_w:        ${clawd_stats_w        | default("88%")}
+  clawd_stats_align:    ${clawd_stats_align    | default("BOTTOM_MID")}
   clawd_margin_top:     ${clawd_margin_top     | default("0")}
   clawd_bar_low:        ${clawd_bar_low        | default("0x43A047")}
   clawd_bar_mid:        ${clawd_bar_mid        | default("0xFFB300")}
@@ -206,7 +234,11 @@ script:
 # column, and bar widths are 100% of their (percentage-sized) parent.
 lvgl:
   pages:
-    - id: !extend ${page_id | default("main_page")}
+    # Creature page. The stats panel below targets ${stats_page_id}; when that
+    # equals ${page_id} (the default) both !extend the same page and the layout
+    # is the classic single screen. When they differ the creature stays here and
+    # the stats move to their own page (square two-page layout).
+    - id: !extend ${page_id}
       widgets:
         # Top region — the engine measures this box and centres a square
         # pixel-art canvas inside it. Sizing it by % keeps the creature in
@@ -223,11 +255,19 @@ lvgl:
             bg_opa: TRANSP
             border_width: 0
             pad_all: 0
+    # Stats page. Same id as the creature page in the single-page default, or a
+    # separate page id for the two-page split.
+    - id: !extend ${stats_page_id}
+      widgets:
         # Bottom region — usage bars + labels, original Clawdmeter style.
         - obj:
             id: ${uid}_stats
-            align: BOTTOM_MID
-            width: 94%
+            align: ${clawd_stats_align}
+            # Even left+right margin to the screen edges. 88% (6%/side) matches
+            # the creature's inset and the grid panel's side_margin, so the
+            # stats line up consistently across every Clawdmeter layout. Override
+            # via clawd_stats_w if a display needs a different gap.
+            width: ${clawd_stats_w}
             height: ${clawd_stats_h}
             bg_opa: TRANSP
             border_width: 0

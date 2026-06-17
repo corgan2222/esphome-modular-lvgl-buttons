@@ -1,0 +1,164 @@
+# Reusable SDL test harness — GRID layout (LANDSCAPE), Clawdmeter from tiles.
+#
+# Mirrors guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml: instead of the
+# all-in-one remote.yaml this composes the display from the individual grid
+# tiles (engine + creature + the backend rate/clock/anim packages + the
+# on-display stats panel) on a 4-row x 4-column page grid:
+#   creature  -> left half  (col 0-1, full height)
+#   stats     -> right half (col 2-3, full height)
+#
+# SDL adaptations vs. the device config (see sdl_single.yaml for the rationale):
+#   * external_components pr#12312 (font/image/lvgl), needed for the host build
+#   * hardware -> hardware/SDL-lvgl.yaml
+#   * sensors_base.yaml -> sensors_base_sdl.yaml (no WiFi/CPU on the host)
+#   * backlight_time.yaml -> time_homeassistant.yaml
+#   * loading.yaml DROPPED (its top_layer overlay never clears without a real HA)
+#   * info.yaml kept (sensors_base* reference its widgets)
+#   * api: present so the homeassistant sensors are valid (they stay unavailable
+#     -> 0% on the host, which is exactly what we want for a layout screenshot)
+#   * on_boot priority -200 forces main_page so we never capture the overlay
+#
+# The HA entity ids are PLACEHOLDERS — this harness never connects to a real HA,
+# the tiles render at 0% / unavailable. Swap them for your own ids on a device.
+#
+# Screen size override: -s screen_width 800 -s screen_height 480
+
+external_components:
+  - source: github://pr#12312
+    components: [font, image, lvgl]
+    refresh: 1h
+
+substitutions:
+  ha_session_usage: "sensor.session_usage"
+  ha_week_usage:    "sensor.week_usage"
+  ha_extra_usage:   "sensor.extra_usage"
+  ha_extra_credits: "sensor.extra_usage_credits"
+  ha_session_reset: "sensor.session_reset_time"
+  ha_weekly_reset:  "sensor.weekly_reset_time"
+
+  icon_font: mdi_icons_40
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+  screen_width: '800'
+  screen_height: '480'
+
+esphome:
+  name: clawdmeter-sdl
+  friendly_name: Clawdmeter SDL
+  on_boot:
+    - priority: -200
+      then:
+        - lvgl.page.show: main_page
+
+logger:
+  level: info
+
+api:
+
+image:
+  defaults:
+    byte_order: little_endian
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+packages:
+  sensors:  !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml
+  time:     !include esphome-modular-lvgl-buttons/common/time_homeassistant.yaml
+  theme:    !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  hardware: !include esphome-modular-lvgl-buttons/hardware/SDL-lvgl.yaml
+  info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+
+  # ---- Clawdmeter, assembled from individual tiles ----
+  clawd_engine: !include esphome-modular-lvgl-buttons/ui/clawdmeter/engine.yaml
+
+  clawd_creature: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/creature.yaml
+    vars:
+      uid: clawd_c
+      row: 0
+      column: 0
+      row_span: 4
+      column_span: 2
+      size: "88%"
+      session_pct_entity: $ha_session_usage
+
+  clawd_burn5: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+    vars:
+      uid: clawd_burn5
+      name: "Clawd Burn Rate 5m"
+      window_min: 5
+      source_entity: $ha_session_usage
+
+  clawd_burn30: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+    vars:
+      uid: clawd_burn30
+      name: "Clawd Burn Rate 30m"
+      window_min: 30
+      source_entity: $ha_session_usage
+
+  clawd_ttl: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/time_to_100.yaml
+    vars:
+      uid: clawd_ttl
+      rate_id: clawd_burn30_rate
+      source_entity: $ha_session_usage
+
+  clawd_reset: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
+    vars:
+      uid: clawd_reset
+      source_entity: $ha_session_reset
+
+  clawd_wreset: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
+    vars:
+      uid: clawd_wreset
+      source_entity: $ha_weekly_reset
+      name: "Clawd Weekly Reset Time"
+      reset_in_name: "Clawd Weekly Reset In"
+
+  clawd_stats: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/stats_panel.yaml
+    vars:
+      uid: clawd_stats
+      row: 0
+      column: 2
+      row_span: 4
+      column_span: 2
+      session_entity: $ha_session_usage
+      weekly_entity: $ha_week_usage
+      extra_entity: $ha_extra_usage
+      credits_entity: $ha_extra_credits
+      session_clock_id: clawd_reset_reset_clock
+      session_resetin_id: clawd_reset_reset_in_min
+      weekly_clock_id: clawd_wreset_reset_clock
+      ttl_eta_id: clawd_ttl_eta_clock
+      burn5_id: clawd_burn5_rate
+      burn30_id: clawd_burn30_rate
+
+  clawd_anim: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/anim_select.yaml
+    vars:
+      uid: clawd_anim
+
+lvgl:
+  pages:
+    - id: main_page
+      layout: 4x4
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []
