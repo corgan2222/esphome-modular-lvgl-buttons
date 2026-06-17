@@ -19,7 +19,8 @@ substitutions:
 
 esphome:
   includes:
-    - clawdmeter_engine.h
+    - esphome-modular-lvgl-buttons/ui/clawdmeter/clawdmeter_engine.h
+    - esphome-modular-lvgl-buttons/ui/clawdmeter/splash_animations.h
   on_boot:
     - priority: -100   # after LVGL + display are up
       then:
@@ -49,24 +50,28 @@ sensor:
     id: ${uid}_session_reset
     entity_id: ${session_reset_entity}
     on_value:
-      then: [ script.execute: ${uid}_refresh_ui ]
+      then:
+        - script.execute: ${uid}_refresh_ui
   - platform: homeassistant
     id: ${uid}_weekly_pct
     entity_id: ${weekly_pct_entity}
     on_value:
-      then: [ script.execute: ${uid}_refresh_ui ]
+      then:
+        - script.execute: ${uid}_refresh_ui
   - platform: homeassistant
     id: ${uid}_weekly_reset
     entity_id: ${weekly_reset_entity}
     on_value:
-      then: [ script.execute: ${uid}_refresh_ui ]
+      then:
+        - script.execute: ${uid}_refresh_ui
 
 text_sensor:
   - platform: homeassistant
     id: ${uid}_status
     entity_id: ${status_entity}
     on_value:
-      then: [ script.execute: ${uid}_refresh_ui ]
+      then:
+        - script.execute: ${uid}_refresh_ui
 
 # Push current values into the LVGL chrome (arc + text). Pure formatting.
 script:

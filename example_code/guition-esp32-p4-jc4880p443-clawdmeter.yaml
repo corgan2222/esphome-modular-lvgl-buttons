@@ -1,0 +1,58 @@
+# esphome-modular-lvgl-buttons/example_code/guition-esp32-p4-jc4880p443-clawdmeter.yaml
+substitutions:
+  icon_font: mdi_icons_40
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+esphome:
+  name: "clawdmeter-p4"
+  friendly_name: "Clawdmeter P4"
+  comment: "Clawdmeter token-usage display on Guition ESP32-P4 JC4880P443"
+
+logger:
+  level: debug
+  logs:
+    lvgl: info
+  hardware_uart: UART0
+
+image:
+  defaults:
+    byte_order: little_endian
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+packages:
+  wifi:    !include esphome-modular-lvgl-buttons/common/wifi.yaml
+  ota_screen: !include esphome-modular-lvgl-buttons/common/ota.yaml
+  sensors: !include esphome-modular-lvgl-buttons/common/sensors_base.yaml
+  theme:   !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  backlight: !include esphome-modular-lvgl-buttons/common/backlight_time.yaml
+  hardware: !include
+    file: esphome-modular-lvgl-buttons/hardware/guition-esp32-p4-jc4880p443.yaml
+    vars:
+      rotation: "90"
+  loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
+  info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+
+  clawdmeter: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
+    vars:
+      uid: clawd
+
+lvgl:
+  pages:
+    - id: main_page
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []

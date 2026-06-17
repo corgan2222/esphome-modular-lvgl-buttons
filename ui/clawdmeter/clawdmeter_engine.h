@@ -3,10 +3,21 @@
 #include <stdint.h>
 #include <string.h>
 
+// ---- monotonic time source -------------------------------------------------
+// ESPHome already provides esphome::millis(); declaring our own global millis()
+// makes the unqualified call ambiguous (main.cpp does `using namespace esphome`).
+// Route every call through clawd_now() so the host test can still shim it.
+#ifdef CLAWD_RATE_ONLY
+extern "C" uint32_t millis();  // host test shim
+static inline uint32_t clawd_now() { return millis(); }
+#else
+#include "esphome/core/hal.h"  // esphome::millis()
+static inline uint32_t clawd_now() { return esphome::millis(); }
+#endif
+
 // ===========================================================================
 // usage-rate state machine  (port of Clawdmeter firmware/src/usage_rate.cpp)
 // ===========================================================================
-extern "C" uint32_t millis();  // provided by ESPHome / host test shim
 
 #define CLAWD_RATE_THRESH_NORMAL  0.10f
 #define CLAWD_RATE_THRESH_ACTIVE  0.20f
@@ -25,7 +36,7 @@ inline void rate_reset() { g_count = 0; g_head = 0; }
 
 inline void clawd_usage_sample(float session_pct) {
   using namespace clawd_detail;
-  uint32_t now = millis();
+  uint32_t now = clawd_now();
   if (g_count > 0) {
     uint8_t latest = (g_head + CLAWD_RING_SIZE - 1) % CLAWD_RING_SIZE;
     if (session_pct + 5.0f < g_ring[latest].pct) rate_reset();  // session reset
@@ -122,7 +133,7 @@ inline void pick_for_rate() {
   if (idx < 0) return;
   g_cur_anim = (uint16_t)idx;
   g_cur_frame = 0;
-  g_frame_started = millis();
+  g_frame_started = clawd_now();
   g_last_pick = g_frame_started;
   const splash_anim_def_t *a = &splash_anims[g_cur_anim];
   render_frame(a->frames[0], a->palette);
@@ -146,7 +157,7 @@ inline lv_obj_t* clawd_init(lv_obj_t* parent, int screen_w, int screen_h) {
   if (SPLASH_ANIM_COUNT > 0) {
     const splash_anim_def_t *a = &splash_anims[0];
     render_frame(a->frames[0], a->palette);
-    g_frame_started = millis();
+    g_frame_started = clawd_now();
     g_last_pick = g_frame_started;
   }
   return g_canvas;
@@ -155,33 +166,27 @@ inline lv_obj_t* clawd_init(lv_obj_t* parent, int screen_w, int screen_h) {
 inline void clawd_tick() {
   using namespace clawd_detail;
   if (!g_canvas || SPLASH_ANIM_COUNT == 0) return;
-  if (millis() - g_last_pick >= CLAWD_ROTATE_MS) pick_for_rate();
+  if (clawd_now() - g_last_pick >= CLAWD_ROTATE_MS) pick_for_rate();
   const splash_anim_def_t *a = &splash_anims[g_cur_anim];
   if (a->frame_count == 0) return;
   uint16_t hold = a->holds[g_cur_frame];
-  if (millis() - g_frame_started >= hold) {
+  if (clawd_now() - g_frame_started >= hold) {
     g_cur_frame = (g_cur_frame + 1) % a->frame_count;
-    g_frame_started = millis();
+    g_frame_started = clawd_now();
     render_frame(a->frames[g_cur_frame], a->palette);
   }
 }
 
-// Display-field cache for YAML lambdas (text + arc). Also feeds the sampler.
-namespace clawd_detail {
-static float g_sess_pct = 0, g_week_pct = 0;
-static int   g_sess_reset = 0, g_week_reset = 0;
-}
+// Feed the rate sampler. Only session_pct drives the animation group; the
+// other fields are displayed directly from the HA sensors in YAML, so they are
+// accepted for call-site symmetry but intentionally unused here.
+// NOTE: do not add accessor functions named after the HA sensor IDs
+// (clawd_session_pct, clawd_weekly_pct, …) — ESPHome generates C++ globals with
+// those exact names, which would collide.
 inline void clawd_set_usage(float session_pct, int session_reset_mins,
                             float weekly_pct, int weekly_reset_mins) {
-  clawd_detail::g_sess_pct   = session_pct;
-  clawd_detail::g_sess_reset = session_reset_mins;
-  clawd_detail::g_week_pct   = weekly_pct;
-  clawd_detail::g_week_reset = weekly_reset_mins;
+  (void) session_reset_mins; (void) weekly_pct; (void) weekly_reset_mins;
   clawd_usage_sample(session_pct);
 }
-inline float clawd_session_pct()    { return clawd_detail::g_sess_pct; }
-inline int   clawd_session_reset()  { return clawd_detail::g_sess_reset; }
-inline float clawd_weekly_pct()     { return clawd_detail::g_week_pct; }
-inline int   clawd_weekly_reset()   { return clawd_detail::g_week_reset; }
 
 #endif  // CLAWD_RATE_ONLY
