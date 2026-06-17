@@ -1,0 +1,149 @@
+# esphome-modular-lvgl-buttons/example_code/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml
+#
+# Clawdmeter composed from INDIVIDUAL grid tiles (not the full-screen all-in-one
+# remote.yaml). Each element is its own package and places itself into one cell
+# of the page grid, so you can rearrange / drop / duplicate them freely:
+#
+#   ui/clawdmeter/engine.yaml      shared engine base — include EXACTLY ONCE
+#   ui/clawdmeter/creature.yaml    the animated creature canvas
+#   ui/clawdmeter/usage_bar.yaml   a usage % bar (used here for session + weekly)
+#   ui/clawdmeter/usage_rate.yaml  on-device burn rate (computed from raw usage %)
+#   ui/clawdmeter/time_to_100.yaml on-device "time to 100%" (computed on the ESP)
+#   ui/clawdmeter/anim_select.yaml animation picker (HA select + on-device dropdown)
+#
+# Burn rate (5m + 30m) and time-to-100% are COMPUTED ON THE ESP from the two raw
+# HA inputs (sensor.claude_usage_stefan_pro_session_usage / ..._session_reset_time)
+# and exposed as device entities visible in the ESPHome dashboard — NOT drawn on
+# the display. They are backend-only here. To also show one as a grid tile, add
+# usage_rate_tile.yaml / time_to_100_tile.yaml (see those files' headers).
+#
+# Tested target: Guition ESP32-P4 JC4880P443 (480x800 panel, rotated 90 ->
+# 800x480 landscape). The page is a 4-row x 4-column grid: the creature fills
+# the left half, the stats/picker stack on the right.
+
+substitutions:
+  icon_font: mdi_icons_40
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+esphome:
+  name: "clawdmeter-p4-grid"
+  friendly_name: "Clawdmeter P4 Grid"
+  comment: "Clawdmeter individual grid tiles on Guition ESP32-P4 JC4880P443"
+
+logger:
+  level: debug
+  logs:
+    lvgl: info
+  hardware_uart: UART0
+
+image:
+  defaults:
+    byte_order: little_endian
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+packages:
+  wifi:    !include esphome-modular-lvgl-buttons/common/wifi.yaml
+  ota_screen: !include esphome-modular-lvgl-buttons/common/ota.yaml
+  sensors: !include esphome-modular-lvgl-buttons/common/sensors_base.yaml
+  theme:   !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  backlight: !include esphome-modular-lvgl-buttons/common/backlight_time.yaml
+  hardware: !include
+    file: esphome-modular-lvgl-buttons/hardware/guition-esp32-p4-jc4880p443.yaml
+    vars:
+      rotation: "90"
+  loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
+  info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+
+  # ---- Clawdmeter, assembled from individual tiles ----
+  # Shared engine — include ONCE. Pulls in the animation engine + sprite data and
+  # runs the frame driver; every clawd_* function becomes available afterwards.
+  clawd_engine: !include esphome-modular-lvgl-buttons/ui/clawdmeter/engine.yaml
+
+  # The animated creature — left half of the screen, with a dynamic margin so it
+  # doesn't kiss the edges. Drives AUTO-mode animation from the session %.
+  clawd_creature: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/creature.yaml
+    vars:
+      uid: clawd_c
+      row: 0
+      column: 0
+      row_span: 4
+      column_span: 2
+      size: "88%"   # ~6% dynamic margin on every side
+
+  # Session usage bar (top-right).
+  clawd_session: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_bar.yaml
+    vars:
+      uid: clawd_sess
+      entity_id: "sensor.clawdmeter_session_pct"
+      text: "Session"
+      row: 0
+      column: 2
+      column_span: 2
+
+  # Weekly usage bar.
+  clawd_weekly: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_bar.yaml
+    vars:
+      uid: clawd_week
+      entity_id: "sensor.clawdmeter_weekly_pct"
+      text: "Weekly"
+      row: 1
+      column: 2
+      column_span: 2
+
+  # Burn rate 5m — COMPUTED on the ESP from raw usage %, exposed as a device
+  # sensor (ESPHome dashboard), not drawn on the display.
+  clawd_burn5: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+    vars:
+      uid: clawd_burn5
+      name: "Clawd Burn Rate 5m"
+      window_min: 5
+
+  # Burn rate 30m — same, also feeds the time-to-100% calc below.
+  clawd_burn30: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+    vars:
+      uid: clawd_burn30
+      name: "Clawd Burn Rate 30m"
+      window_min: 30
+
+  # Time-to-100% — COMPUTED on the ESP from raw usage % + the 30m burn rate
+  # (exactly like the HA template), exposed as a device text sensor.
+  clawd_ttl: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/time_to_100.yaml
+    vars:
+      uid: clawd_ttl
+      rate_id: clawd_burn30_rate
+
+  # Animation picker — HA select + on-device dropdown + current-clip text sensor.
+  clawd_anim: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/anim_select.yaml
+    vars:
+      uid: clawd_anim
+      row: 3
+      column: 2
+      column_span: 2
+
+lvgl:
+  pages:
+    - id: main_page
+      layout: 4x4   # 4 rows x 4 columns; tiles place themselves via grid_cell_*
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []

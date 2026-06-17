@@ -1,0 +1,27 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/engine.yaml
+# Shared Clawdmeter engine base — include EXACTLY ONCE when composing the
+# clawdmeter elements individually into a grid (creature.yaml, usage_bar.yaml,
+# anim_select.yaml, usage_rate.yaml, time_to_100.yaml, ...).
+#
+# It pulls the animation engine + sprite data into the build and runs the 50ms
+# frame driver. Every clawd_* function then becomes available to all lambdas in
+# the config (esphome.includes adds the headers globally to main.cpp).
+#
+# Do NOT combine this with ui/clawdmeter/remote.yaml — that full-screen
+# all-in-one variant already includes the engine itself, so including both
+# would copy the headers twice.
+#
+# No vars.
+
+esphome:
+  includes:
+    - esphome-modular-lvgl-buttons/ui/clawdmeter/clawdmeter_engine.h
+    - esphome-modular-lvgl-buttons/ui/clawdmeter/splash_animations.h
+
+# Animation driver — advance frames + rotate within the usage group (or hold a
+# manually selected animation; see anim_select.yaml). Safe before the canvas
+# exists: clawd_tick() early-returns until clawd_init() has run.
+interval:
+  - interval: 50ms
+    then:
+      - lambda: 'clawd_tick();'

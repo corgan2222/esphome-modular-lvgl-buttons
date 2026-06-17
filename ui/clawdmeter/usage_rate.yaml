@@ -1,0 +1,103 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+# ON-DEVICE windowed burn-rate. Mirrors the Home Assistant *derivative* helper
+# "Claude Session Burn Rate Xm" — but computes it on the ESP itself from the raw
+# usage % sensor, then re-exposes the result as a device sensor (it has a
+# `name:`), so it shows up in the ESPHome dashboard / Home Assistant. No LVGL —
+# this is a pure backend entity. For a display tile use usage_rate_tile.yaml.
+#
+# HA reference (derivative helper):
+#   source    = sensor.claude_usage_stefan_pro_session_usage
+#   time_window = 5 min  (or 30 min for the 30m variant)
+#   unit_time = h        -> result in  %/h
+#   round     = 1
+# i.e. the average rate of change of usage over the last `window_min` minutes,
+# expressed per hour. We sample the source every `sample_sec` seconds into a
+# ring buffer keyed by real time (millis), then take
+#   rate = (newest - oldest_within_window) / (Δt_hours)
+#
+# Instantiate it once per window you want, e.g. 5m AND 30m:
+#   clawd_burn5:  { uid: clawd_burn5,  name: "Clawd Burn Rate 5m",  window_min: 5 }
+#   clawd_burn30: { uid: clawd_burn30, name: "Clawd Burn Rate 30m", window_min: 30 }
+#
+# Does NOT require engine.yaml. Pure ESPHome, no custom C++ header.
+#
+# vars:
+#   uid             required  namespace prefix (also forms the exposed sensor id ${uid}_rate)
+#   source_entity   optional  HA usage % sensor (default ...session_usage)
+#   name            optional  entity name exposed to HA (default "Clawd Burn Rate")
+#   window_min      optional  averaging window in minutes (default 5)
+#   sample_sec      optional  sampling cadence in seconds  (default 30)
+#   round_decimals  optional  displayed decimals          (default 1)
+#   internal        optional  "true" keeps the rate device-internal / unexposed
+#                             (use for a 30m rate you only feed into time_to_100);
+#                             default "false" = exposed in the ESPHome dashboard
+#
+# NOTE: the ring buffer holds 80 samples. At the default 30s cadence that spans
+# 40 min, so any window_min up to ~40 works. Raise sample_sec for longer windows.
+
+globals:
+  # Array globals must NOT set initial_value (ESPHome would emit a constructor
+  # that can't take an array arg) — they are zero-initialized by default.
+  - id: ${uid}_buf_t
+    type: float[80]
+    restore_value: false
+  - id: ${uid}_buf_v
+    type: float[80]
+    restore_value: false
+  - id: ${uid}_buf_head
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: ${uid}_buf_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+sensor:
+  # Raw usage % pulled from HA — internal, just the input to the derivative.
+  - platform: homeassistant
+    id: ${uid}_src
+    entity_id: ${source_entity | default("sensor.claude_usage_stefan_pro_session_usage")}
+    internal: true
+
+  # The computed burn rate. The lambda both samples (push into ring) and
+  # computes the windowed slope, so one template sensor owns the whole pipeline.
+  - platform: template
+    id: ${uid}_rate
+    name: ${name | default("Clawd Burn Rate")}
+    unit_of_measurement: "%/h"
+    accuracy_decimals: ${round_decimals | default(1)}
+    icon: mdi:fire-alert
+    internal: ${internal | default("false")}
+    update_interval: ${sample_sec | default(30)}s
+    lambda: |-
+      if (!id(${uid}_src).has_state() || std::isnan(id(${uid}_src).state)) {
+        return {};  // no input yet -> don't publish
+      }
+      const float now = (float) millis() / 1000.0f;
+      const float cur = id(${uid}_src).state;
+      // push the new sample into the ring buffer
+      int h = id(${uid}_buf_head);
+      id(${uid}_buf_t)[h] = now;
+      id(${uid}_buf_v)[h] = cur;
+      id(${uid}_buf_head) = (h + 1) % 80;
+      if (id(${uid}_buf_count) < 80) id(${uid}_buf_count) = id(${uid}_buf_count) + 1;
+
+      const int cnt = id(${uid}_buf_count);
+      if (cnt < 2) return {};  // need at least two points for a slope
+
+      const float win = ${window_min | default(5)} * 60.0f;  // window in seconds
+      const int newest = (id(${uid}_buf_head) + 80 - 1) % 80;
+      const float tn = id(${uid}_buf_t)[newest];
+      const float vn = id(${uid}_buf_v)[newest];
+
+      // walk back to the oldest sample still inside the window
+      int oldest = newest;
+      for (int k = 1; k < cnt; k++) {
+        int idx = (newest + 80 - k) % 80;
+        if (tn - id(${uid}_buf_t)[idx] > win) break;
+        oldest = idx;
+      }
+      const float dt = tn - id(${uid}_buf_t)[oldest];
+      if (dt <= 0.0f) return {};
+      return (vn - id(${uid}_buf_v)[oldest]) / (dt / 3600.0f);  // %/h

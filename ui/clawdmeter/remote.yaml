@@ -13,6 +13,11 @@
 #   status_entity        optional  HA sensor, free text   (default sensor.clawdmeter_status)
 #   clawd_creature_h     optional  height of the creature region (default "60%")
 #   clawd_stats_h        optional  height of the stats panel     (default "38%")
+#   clawd_margin_top     optional  gap between the top display edge and the
+#                                  creature — px ("16") or percent ("4%") of the
+#                                  page height; default "0". Applied as a `y`
+#                                  offset on the top-aligned creature region, so
+#                                  it scales dynamically when given a percent.
 #   clawd_bar_low        optional  bar fill colour  <50%  (default "0x43A047" green)
 #   clawd_bar_mid        optional  bar fill colour 50-80% (default "0xFFB300" amber)
 #   clawd_bar_high       optional  bar fill colour >=80%  (default "0xE53935" red)
@@ -40,6 +45,7 @@ substitutions:
   status_entity:        ${status_entity        | default("sensor.clawdmeter_status")}
   clawd_creature_h:     ${clawd_creature_h     | default("60%")}
   clawd_stats_h:        ${clawd_stats_h        | default("38%")}
+  clawd_margin_top:     ${clawd_margin_top     | default("0")}
   clawd_bar_low:        ${clawd_bar_low        | default("0x43A047")}
   clawd_bar_mid:        ${clawd_bar_mid        | default("0xFFB300")}
   clawd_bar_high:       ${clawd_bar_high       | default("0xE53935")}
@@ -204,6 +210,10 @@ lvgl:
         - obj:
             id: ${uid}_creature_root
             align: TOP_MID
+            # Dynamic top margin so the creature doesn't stick to the display
+            # edge. A percentage y offset scales with the page height; px also
+            # works. The canvas is centred inside this box and just shifts down.
+            y: ${clawd_margin_top}
             width: 100%
             height: ${clawd_creature_h}
             bg_opa: TRANSP

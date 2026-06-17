@@ -105,6 +105,9 @@ static uint16_t *g_rowbuf    = nullptr;
 static int       g_cell = 24, g_cw = 480, g_ch = 480;
 static uint16_t  g_cur_anim = 0, g_cur_frame = 0;
 static uint32_t  g_frame_started = 0, g_last_pick = 0;
+// Animation selection mode: -1 = automatic (driven by usage group/rate);
+// 0..SPLASH_ANIM_COUNT-1 = forced to that specific animation index.
+static int       g_anim_mode = -1;
 
 static int8_t  g_group_lists[CLAWD_GROUP_COUNT][CLAWD_GROUP_MAX];
 static uint8_t g_group_size[CLAWD_GROUP_COUNT] = {0};
@@ -149,6 +152,20 @@ inline void render_frame(const uint8_t *cells, const uint16_t *palette) {
 
 inline void pick_for_rate() {
   if (SPLASH_ANIM_COUNT == 0) return;
+  // Manual override: hold the chosen animation. Refresh g_last_pick so the
+  // 20s auto-rotate never fires, and only (re)start the clip when it changes
+  // so a running animation isn't reset to frame 0 every rotate interval.
+  if (g_anim_mode >= 0 && g_anim_mode < SPLASH_ANIM_COUNT) {
+    g_last_pick = clawd_now();
+    if (g_cur_anim != (uint16_t) g_anim_mode) {
+      g_cur_anim = (uint16_t) g_anim_mode;
+      g_cur_frame = 0;
+      g_frame_started = clawd_now();
+      const splash_anim_def_t *a = &splash_anims[g_cur_anim];
+      render_frame(a->frames[0], a->palette);
+    }
+    return;
+  }
   int g = clawd_usage_group();
   if (g < 0 || g >= CLAWD_GROUP_COUNT) g = 0;
   if (g_group_size[g] == 0) return;
@@ -224,6 +241,33 @@ inline void clawd_set_usage(float session_pct, int session_reset_mins,
                             float weekly_pct, int weekly_reset_mins) {
   (void) session_reset_mins; (void) weekly_pct; (void) weekly_reset_mins;
   clawd_usage_sample(session_pct);
+}
+
+// ---- Animation selection API (manual override / auto) ----------------------
+// Set the animation mode: -1 = automatic (usage-driven), or a 0-based index
+// into splash_anims[] to force a specific animation. Applies immediately.
+inline void clawd_set_anim_mode(int mode) {
+  using namespace clawd_detail;
+  if (mode < -1 || mode >= SPLASH_ANIM_COUNT) mode = -1;
+  g_anim_mode = mode;
+  pick_for_rate();  // apply now (auto re-picks by rate; forced jumps to clip)
+}
+
+// Current mode: -1 = auto, else the forced animation index.
+inline int clawd_get_anim_mode() { return clawd_detail::g_anim_mode; }
+
+// Total number of selectable animations.
+inline int clawd_anim_count() { return SPLASH_ANIM_COUNT; }
+
+// Name of the animation at index i (nullptr if out of range).
+inline const char* clawd_anim_name_at(int i) {
+  if (i < 0 || i >= SPLASH_ANIM_COUNT) return nullptr;
+  return splash_anims[i].name;
+}
+
+// Name of the animation currently on screen (for status/exposed text_sensor).
+inline const char* clawd_current_anim_name() {
+  return splash_anims[clawd_detail::g_cur_anim].name;
 }
 
 #endif  // CLAWD_RATE_ONLY
