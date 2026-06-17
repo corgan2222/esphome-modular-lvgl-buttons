@@ -6,7 +6,7 @@
 # this is a pure backend entity. For a display tile use usage_rate_tile.yaml.
 #
 # HA reference (derivative helper):
-#   source    = sensor.claude_usage_stefan_pro_session_usage
+#   source    = <your HA session-usage % sensor>
 #   time_window = 5 min  (or 30 min for the 30m variant)
 #   unit_time = h        -> result in  %/h
 #   round     = 1
@@ -23,7 +23,10 @@
 #
 # vars:
 #   uid             required  namespace prefix (also forms the exposed sensor id ${uid}_rate)
-#   source_entity   optional  HA usage % sensor (default ...session_usage)
+#   source_entity   optional  HA usage % sensor. Bind it from your device YAML;
+#                             the default is an invalid SET_ME placeholder
+#                             (sensor.SET_ME_session_usage) so a missing binding
+#                             reads as "unavailable" instead of a wrong id.
 #   name            optional  entity name exposed to HA (default "Clawd Burn Rate")
 #   window_min      optional  averaging window in minutes (default 5)
 #   sample_sec      optional  sampling cadence in seconds  (default 30)
@@ -57,7 +60,7 @@ sensor:
   # Raw usage % pulled from HA — internal, just the input to the derivative.
   - platform: homeassistant
     id: ${uid}_src
-    entity_id: ${source_entity | default("sensor.claude_usage_stefan_pro_session_usage")}
+    entity_id: ${source_entity | default("sensor.SET_ME_session_usage")}
     internal: true
 
   # The computed burn rate. The lambda both samples (push into ring) and

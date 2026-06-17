@@ -7,7 +7,7 @@
 # use time_to_100_tile.yaml.
 #
 # HA reference (template helper), uses the 30m burn rate:
-#   usage = sensor.claude_usage_stefan_pro_session_usage          (%)
+#   usage = <your HA session-usage % sensor>                     (%)
 #   burn  = ...claude_session_burn_rate_30m...                    (%/h)
 #   rate <= 0 or inputs unavailable -> keep last state else 'unbekannt'
 #   else -> "in {{ ((100 - usage) / rate * 60) | int }} Min."
@@ -22,7 +22,9 @@
 # vars:
 #   uid            required  namespace prefix (exposed text_sensor id ${uid}_time_to_100)
 #   rate_id        required  id of the on-device burn-rate sensor to use (e.g. the 30m one)
-#   source_entity  optional  HA usage % sensor (default ...session_usage)
+#   source_entity  optional  HA usage % sensor (default sensor.SET_ME_session_usage,
+#                            a deliberately invalid placeholder — bind the real
+#                            entity from your device YAML, never edit this file)
 #   name           optional  entity name exposed to HA (default "Clawd Session Time To 100")
 #   update_sec     optional  recompute cadence in seconds (default 30)
 #   time_id        optional  id of the time: component (default system_time)
@@ -32,7 +34,7 @@
 sensor:
   - platform: homeassistant
     id: ${uid}_ttl_usage
-    entity_id: ${source_entity | default("sensor.claude_usage_stefan_pro_session_usage")}
+    entity_id: ${source_entity | default("sensor.SET_ME_session_usage")}
     internal: true
 
 text_sensor:

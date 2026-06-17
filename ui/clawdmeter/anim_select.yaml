@@ -6,6 +6,18 @@
 #  * A template `text_sensor` (also exposed) publishes the animation currently
 #    on screen, so HA always sees which clip is playing — including while in
 #    auto mode where the engine rotates clips on its own.
+#  * Diagnostic entities that surface the auto-mode decision so you can watch
+#    the group switch live in the dashboard:
+#      - sensor "Clawd Usage Group"  -> the 0..3 bucket clawd_usage_group()
+#                                       returns (0 idle / 1 normal / 2 active /
+#                                       3 heavy).
+#      - sensor "Clawd Usage Rate"   -> the raw usage rate in %/min the bucket
+#                                       is derived from (-1 = still warming up:
+#                                       <2 samples or window < the min window).
+#      - text_sensor "Clawd Usage Diag" -> one glanceable line
+#                                       "<group> | <rate> %/min | <n> smp | <win> min"
+#                                       so a reported group 0 is unambiguous
+#                                       (too few samples vs. rate below threshold).
 #
 # The picker lives in the ESPHome dashboard / HA device page, NOT on the LVGL
 # display (the creature itself stays the only Clawdmeter thing drawn on screen).
@@ -50,6 +62,28 @@ select:
       then:
         - lambda: 'clawd_set_anim_mode((int) i - 1);'
 
+sensor:
+  # Auto-mode decision bucket: 0 idle / 1 normal / 2 active / 3 heavy. Watch
+  # this flip in the dashboard as the session burn rate climbs.
+  - platform: template
+    id: ${uid}_usage_group
+    name: ${group_name | default("Clawd Usage Group")}
+    icon: mdi:speedometer
+    accuracy_decimals: 0
+    update_interval: 2s
+    lambda: 'return (float) clawd_usage_group();'
+
+  # The raw usage rate (%/min) the bucket is derived from. -1 = still warming
+  # up (fewer than 2 samples, or the sample window is shorter than the minimum).
+  - platform: template
+    id: ${uid}_usage_rate
+    name: ${rate_name | default("Clawd Usage Rate")}
+    icon: mdi:trending-up
+    unit_of_measurement: "%/min"
+    accuracy_decimals: 3
+    update_interval: 2s
+    lambda: 'return clawd_usage_rate_per_min();'
+
 text_sensor:
   - platform: template
     id: ${uid}_current_anim
@@ -59,3 +93,24 @@ text_sensor:
     lambda: |-
       const char *n = clawd_current_anim_name();
       return std::string(n ? n : "");
+
+  # One-line diagnostics so a reported group 0 is unambiguous: shows the group
+  # name, raw rate, sample count and the spanned window in minutes.
+  - platform: template
+    id: ${uid}_usage_diag
+    name: ${diag_name | default("Clawd Usage Diag")}
+    icon: mdi:bug-check-outline
+    update_interval: 2s
+    lambda: |-
+      int g = clawd_usage_group();
+      float r = clawd_usage_rate_per_min();
+      int n = clawd_usage_sample_count();
+      float win = clawd_usage_window_ms() / 60000.0f;
+      char buf[64];
+      if (r < 0.0f)
+        snprintf(buf, sizeof(buf), "%s | warming up | %d smp | %.1f min",
+                 clawd_usage_group_name(g), n, win);
+      else
+        snprintf(buf, sizeof(buf), "%s | %.3f %%/min | %d smp | %.1f min",
+                 clawd_usage_group_name(g), r, n, win);
+      return std::string(buf);

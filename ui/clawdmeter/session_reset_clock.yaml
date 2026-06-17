@@ -3,9 +3,9 @@
 # the current Claude session resets, as opposed to time_to_100.yaml which gives
 # the duration *until* the limit is hit.
 #
-# Source is the raw HA timestamp sensor
-#   sensor.claude_usage_stefan_pro_session_reset_time
-# whose state is an ISO-8601 instant in UTC, e.g. "2026-06-17T17:19:59+00:00".
+# Source is a raw HA timestamp sensor (bound via the source_entity var from your
+# device YAML) whose state is an ISO-8601 instant in UTC, e.g.
+# "2026-06-17T17:19:59+00:00".
 # We pull that string, parse it, convert UTC -> local epoch and re-localize via
 # the device time component (TZ is set by common/backlight_time.yaml ->
 # homeassistant time), then publish just "HH:MM" as a device text_sensor. No
@@ -17,8 +17,10 @@
 #
 # vars:
 #   uid            required  namespace prefix (text_sensor id ${uid}_reset_clock)
-#   source_entity  optional  HA reset-time sensor
-#                            (default ...session_reset_time)
+#   source_entity  optional  HA reset-time sensor. Bind it from your device
+#                            YAML; the default sensor.SET_ME_session_reset_time
+#                            is a deliberately invalid placeholder (never edit
+#                            this file) so a missing binding reads "unavailable".
 #   name           optional  entity name exposed to HA
 #                            (default "Clawd Session Reset Time")
 #   update_sec     optional  recompute cadence in seconds (default 30)
@@ -56,7 +58,7 @@ sensor:
 text_sensor:
   - platform: homeassistant
     id: ${uid}_reset_src
-    entity_id: ${source_entity | default("sensor.claude_usage_stefan_pro_session_reset_time")}
+    entity_id: ${source_entity | default("sensor.SET_ME_session_reset_time")}
     internal: true
 
   - platform: template

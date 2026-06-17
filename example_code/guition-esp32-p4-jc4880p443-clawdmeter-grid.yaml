@@ -24,6 +24,22 @@
 # the left half, the stats panel fills the right half.
 
 substitutions:
+  # ======================================================================
+  #  HOME ASSISTANT DATA SOURCE — edit ONLY this block to adapt to your HA.
+  # ----------------------------------------------------------------------
+  #  These are the raw Home Assistant entities the Clawdmeter reads. They
+  #  are the ONLY thing you need to change for your own setup — every
+  #  ui/clawdmeter/* file receives them from here via `vars:`, so you never
+  #  have to (and should never) edit anything under ui/. Replace the entity
+  #  ids below with the ones from your own "Claude Usage" device.
+  # ======================================================================
+  ha_session_usage: "sensor.claude_usage_stefan_pro_session_usage"        # session limit used, %
+  ha_week_usage:    "sensor.claude_usage_stefan_pro_week_usage"           # weekly limit used, %
+  ha_extra_usage:   "sensor.claude_usage_stefan_pro_extra_usage"          # extra usage, % (may be disabled in HA)
+  ha_extra_credits: "sensor.claude_usage_stefan_pro_extra_usage_credits"  # extra usage, credits
+  ha_session_reset: "sensor.claude_usage_stefan_pro_session_reset_time"   # session reset, timestamp
+  ha_weekly_reset:  "sensor.claude_usage_stefan_pro_weekly_reset_time"    # weekly reset, timestamp
+
   icon_font: mdi_icons_40
   text_font: nunito_20
   text_color: white
@@ -86,9 +102,8 @@ packages:
       column_span: 2
       size: "88%"   # ~6% dynamic margin on every side
       # AUTO-mode animation is driven by the REAL session-usage % so the creature
-      # gets livelier as the burn rate climbs. Without this it would default to
-      # the bogus sensor.clawdmeter_session_pct and stay stuck in the idle group.
-      session_pct_entity: "sensor.claude_usage_stefan_pro_session_usage"
+      # gets livelier as the burn rate climbs (else it stays stuck in idle).
+      session_pct_entity: $ha_session_usage
 
   # Burn rate 5m — COMPUTED on the ESP from raw usage %, exposed as a device
   # sensor (ESPHome dashboard), not drawn on the display.
@@ -98,6 +113,7 @@ packages:
       uid: clawd_burn5
       name: "Clawd Burn Rate 5m"
       window_min: 5
+      source_entity: $ha_session_usage
 
   # Burn rate 30m — same, also feeds the time-to-100% calc below.
   clawd_burn30: !include
@@ -106,6 +122,7 @@ packages:
       uid: clawd_burn30
       name: "Clawd Burn Rate 30m"
       window_min: 30
+      source_entity: $ha_session_usage
 
   # Time-to-100% — COMPUTED on the ESP from raw usage % + the 30m burn rate
   # (exactly like the HA template), exposed as a device text sensor.
@@ -114,6 +131,7 @@ packages:
     vars:
       uid: clawd_ttl
       rate_id: clawd_burn30_rate
+      source_entity: $ha_session_usage
 
   # Absolute SESSION-reset wall-clock time ("HH:MM") + "reset in xx m", derived
   # on the ESP from the raw reset-time timestamp and the device timezone.
@@ -121,6 +139,7 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
     vars:
       uid: clawd_reset
+      source_entity: $ha_session_reset
 
   # Absolute WEEKLY-reset wall-clock time ("HH:MM"), same compute, fed from the
   # weekly reset-time timestamp. The "reset in" sensor it also emits is unused.
@@ -128,7 +147,7 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
     vars:
       uid: clawd_wreset
-      source_entity: "sensor.claude_usage_stefan_pro_weekly_reset_time"
+      source_entity: $ha_weekly_reset
       name: "Clawd Weekly Reset Time"
       reset_in_name: "Clawd Weekly Reset In"
 
@@ -144,6 +163,10 @@ packages:
       column: 2
       row_span: 4
       column_span: 2
+      session_entity: $ha_session_usage
+      weekly_entity: $ha_week_usage
+      extra_entity: $ha_extra_usage
+      credits_entity: $ha_extra_credits
       session_clock_id: clawd_reset_reset_clock
       session_resetin_id: clawd_reset_reset_in_min
       weekly_clock_id: clawd_wreset_reset_clock

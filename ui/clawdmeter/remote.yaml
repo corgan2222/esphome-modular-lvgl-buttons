@@ -4,13 +4,17 @@
 # vars:
 #   uid                  required  namespace prefix
 #   page_id              optional  parent page (default main_page)
-#   session_pct_entity   optional  HA sensor, numeric %   (default sensor.clawdmeter_session_pct)
+# NOTE: every *_entity default below is a deliberately invalid SET_ME_*
+# placeholder. Bind the real Home Assistant entities from your device YAML via
+# `vars:` — never edit this file. A missing binding then shows up as
+# "unavailable" instead of silently reading a wrong id.
+#   session_pct_entity   optional  HA sensor, numeric %   (default sensor.SET_ME_session_usage)
 #   session_reset_entity optional  HA sensor, ISO-8601 UTC timestamp of next reset
-#                                  (default sensor.clawdmeter_session_reset_time)
-#   weekly_pct_entity    optional  HA sensor, numeric %   (default sensor.clawdmeter_weekly_pct)
+#                                  (default sensor.SET_ME_session_reset_time)
+#   weekly_pct_entity    optional  HA sensor, numeric %   (default sensor.SET_ME_week_usage)
 #   weekly_reset_entity  optional  HA sensor, ISO-8601 UTC timestamp of next reset
-#                                  (default sensor.clawdmeter_weekly_reset_time)
-#   status_entity        optional  HA sensor, free text   (default sensor.clawdmeter_status)
+#                                  (default sensor.SET_ME_weekly_reset_time)
+#   status_entity        optional  HA sensor, free text   (default sensor.SET_ME_status)
 #   clawd_creature_h     optional  height of the creature region (default "60%")
 #   clawd_stats_h        optional  height of the stats panel     (default "38%")
 #   clawd_margin_top     optional  gap between the top display edge and the
@@ -38,11 +42,11 @@
 # or common/time_homeassistant.yaml provides it).
 
 substitutions:
-  session_pct_entity:   ${session_pct_entity   | default("sensor.clawdmeter_session_pct")}
-  session_reset_entity: ${session_reset_entity | default("sensor.clawdmeter_session_reset_time")}
-  weekly_pct_entity:    ${weekly_pct_entity    | default("sensor.clawdmeter_weekly_pct")}
-  weekly_reset_entity:  ${weekly_reset_entity  | default("sensor.clawdmeter_weekly_reset_time")}
-  status_entity:        ${status_entity        | default("sensor.clawdmeter_status")}
+  session_pct_entity:   ${session_pct_entity   | default("sensor.SET_ME_session_usage")}
+  session_reset_entity: ${session_reset_entity | default("sensor.SET_ME_session_reset_time")}
+  weekly_pct_entity:    ${weekly_pct_entity    | default("sensor.SET_ME_week_usage")}
+  weekly_reset_entity:  ${weekly_reset_entity  | default("sensor.SET_ME_weekly_reset_time")}
+  status_entity:        ${status_entity        | default("sensor.SET_ME_status")}
   clawd_creature_h:     ${clawd_creature_h     | default("60%")}
   clawd_stats_h:        ${clawd_stats_h        | default("38%")}
   clawd_margin_top:     ${clawd_margin_top     | default("0")}

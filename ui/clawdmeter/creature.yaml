@@ -21,8 +21,11 @@
 #                                 on every side. (LVGL pad_* takes only px, so a
 #                                 percentage inset is expressed via this size.)
 #   session_pct_entity  optional  HA numeric % sensor that drives the animation
-#                                 group in AUTO mode (default
-#                                 sensor.clawdmeter_session_pct)
+#                                 group in AUTO mode. SET THIS from your device
+#                                 YAML — the default is a deliberately invalid
+#                                 placeholder (sensor.SET_ME_session_usage) so a
+#                                 missing binding shows up as "unavailable"
+#                                 instead of silently working off the wrong id.
 #
 # Requires screen_width / screen_height substitutions (every hardware/*.yaml
 # provides them) — used only as a fallback if the layout isn't resolved yet.
@@ -40,7 +43,7 @@ esphome:
 sensor:
   - platform: homeassistant
     id: ${uid}_anim_session_pct
-    entity_id: ${session_pct_entity | default("sensor.clawdmeter_session_pct")}
+    entity_id: ${session_pct_entity | default("sensor.SET_ME_session_usage")}
     on_value:
       then:
         - lambda: 'clawd_set_usage(x, 0, 0.0f, 0);'

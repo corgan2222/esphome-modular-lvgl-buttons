@@ -35,10 +35,13 @@
 #   refresh_sec        optional  repaint cadence in seconds (default 3)
 #   stat_font          optional  label font, used by every row incl. the burn
 #                                 line (default nunito_18)
-#   session_entity     optional  HA session %     (default ...session_usage)
-#   weekly_entity      optional  HA weekly %       (default ...week_usage)
-#   extra_entity       optional  HA extra %        (default ...extra_usage)
-#   credits_entity     optional  HA extra credits  (default ...extra_usage_credits)
+# NOTE: each *_entity default is a deliberately invalid SET_ME_* placeholder —
+# bind the real HA entities from your device YAML via `vars:`, never edit this
+# file. A missing binding then reads as "unavailable" instead of a wrong id.
+#   session_entity     optional  HA session %     (default sensor.SET_ME_session_usage)
+#   weekly_entity      optional  HA weekly %       (default sensor.SET_ME_week_usage)
+#   extra_entity       optional  HA extra %        (default sensor.SET_ME_extra_usage)
+#   credits_entity     optional  HA extra credits  (default sensor.SET_ME_extra_usage_credits)
 #   session_clock_id   required  id of the session reset-clock text_sensor
 #   session_resetin_id required  id of the "reset in" minutes sensor
 #   weekly_clock_id    required  id of the weekly reset-clock text_sensor
@@ -49,19 +52,19 @@
 sensor:
   - platform: homeassistant
     id: ${uid}_session_pct
-    entity_id: ${session_entity | default("sensor.claude_usage_stefan_pro_session_usage")}
+    entity_id: ${session_entity | default("sensor.SET_ME_session_usage")}
     internal: true
   - platform: homeassistant
     id: ${uid}_week_pct
-    entity_id: ${weekly_entity | default("sensor.claude_usage_stefan_pro_week_usage")}
+    entity_id: ${weekly_entity | default("sensor.SET_ME_week_usage")}
     internal: true
   - platform: homeassistant
     id: ${uid}_extra_pct
-    entity_id: ${extra_entity | default("sensor.claude_usage_stefan_pro_extra_usage")}
+    entity_id: ${extra_entity | default("sensor.SET_ME_extra_usage")}
     internal: true
   - platform: homeassistant
     id: ${uid}_extra_credits
-    entity_id: ${credits_entity | default("sensor.claude_usage_stefan_pro_extra_usage_credits")}
+    entity_id: ${credits_entity | default("sensor.SET_ME_extra_usage_credits")}
     internal: true
 
 interval:

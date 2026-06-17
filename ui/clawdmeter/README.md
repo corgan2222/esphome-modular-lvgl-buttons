@@ -35,11 +35,11 @@ whatever scrapes your usage (HA template sensor, REST sensor, the
 
 | Var | Default entity | Type | Meaning |
 |---|---|---|---|
-| `session_pct_entity` | `sensor.clawdmeter_session_pct` | 0–100 | % of the current session limit used. **Drives the animation.** |
-| `session_reset_entity` | `sensor.clawdmeter_session_reset_time` | ISO-8601 timestamp | Instant the session limit resets, e.g. `2026-06-17T06:30:00+00:00`. |
-| `weekly_pct_entity` | `sensor.clawdmeter_weekly_pct` | 0–100 | % of the weekly limit used. |
-| `weekly_reset_entity` | `sensor.clawdmeter_weekly_reset_time` | ISO-8601 timestamp | Instant the weekly limit resets. |
-| `status_entity` | `text_sensor.clawdmeter_status` | text | Free-form status line shown at the bottom. |
+| `session_pct_entity` | `sensor.SET_ME_session_usage` | 0–100 | % of the current session limit used. **Drives the animation.** |
+| `session_reset_entity` | `sensor.SET_ME_session_reset_time` | ISO-8601 timestamp | Instant the session limit resets, e.g. `2026-06-17T06:30:00+00:00`. |
+| `weekly_pct_entity` | `sensor.SET_ME_week_usage` | 0–100 | % of the weekly limit used. |
+| `weekly_reset_entity` | `sensor.SET_ME_weekly_reset_time` | ISO-8601 timestamp | Instant the weekly limit resets. |
+| `status_entity` | `sensor.SET_ME_status` | text | Free-form status line shown at the bottom. |
 
 The `*_reset_entity` sensors carry the next reset **instant** as an ISO-8601 UTC
 string; the device converts it to minutes-from-now on-device via

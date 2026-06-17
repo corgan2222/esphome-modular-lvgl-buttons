@@ -63,6 +63,49 @@ inline int clawd_usage_group() {
   return 3;
 }
 
+// ---- Diagnostics: expose the raw figures behind clawd_usage_group() --------
+// clawd_usage_group() collapses everything into a 0..3 bucket, so a reported 0
+// is ambiguous (too few samples? window too short? rate below threshold?).
+// These accessors surface the underlying numbers for the ESPHome dashboard.
+
+// Current usage rate in %/min over the ring window, using the SAME maths as
+// clawd_usage_group(). Returns -1.0f while there is not yet enough data to
+// decide (fewer than 2 samples, or the window is shorter than CLAWD_MIN_WINDOW_MS).
+inline float clawd_usage_rate_per_min() {
+  using namespace clawd_detail;
+  if (g_count < 2) return -1.0f;
+  uint8_t o = oldest_idx();
+  uint8_t l = (g_head + CLAWD_RING_SIZE - 1) % CLAWD_RING_SIZE;
+  uint32_t dt = g_ring[l].ms - g_ring[o].ms;
+  if (dt < CLAWD_MIN_WINDOW_MS) return -1.0f;
+  float dp = g_ring[l].pct - g_ring[o].pct;
+  if (dp < 0.0f) dp = 0.0f;
+  return dp * 60000.0f / (float)dt;
+}
+
+// Number of usage samples currently held in the ring buffer (0..CLAWD_RING_SIZE).
+inline int clawd_usage_sample_count() { return clawd_detail::g_count; }
+
+// Milliseconds spanned by the samples in the ring (oldest..newest). 0 if <2.
+inline uint32_t clawd_usage_window_ms() {
+  using namespace clawd_detail;
+  if (g_count < 2) return 0;
+  uint8_t o = oldest_idx();
+  uint8_t l = (g_head + CLAWD_RING_SIZE - 1) % CLAWD_RING_SIZE;
+  return g_ring[l].ms - g_ring[o].ms;
+}
+
+// Human-readable name of a usage group (0..3), or "?" if out of range.
+inline const char* clawd_usage_group_name(int g) {
+  switch (g) {
+    case 0: return "idle";
+    case 1: return "normal";
+    case 2: return "active";
+    case 3: return "heavy";
+    default: return "?";
+  }
+}
+
 // ---- ISO-8601 timestamp -> "minutes from now" -----------------------------
 // The HA Claude-usage reset_time sensors emit a UTC ISO-8601 string such as
 // "2026-06-17T06:30:00+00:00". Parse it and return whole minutes from

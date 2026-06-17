@@ -10,7 +10,7 @@
 # vars:
 #   uid              required  namespace prefix (unique per bar)
 #   entity_id        required  HA numeric % sensor, e.g.
-#                              "sensor.clawdmeter_session_pct"
+#                              "sensor.SET_ME_session_usage"
 #   text             optional  label prefix (default "Usage")
 #   row              required  grid row
 #   column           required  grid column
