@@ -76,6 +76,8 @@ packages:
   loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
   # info screen - WiFi login, IP address, MAC address etc
   info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+  # shared popup scrim + popup_close base — required by the light tile's color picker
+  popup_system: !include esphome-modular-lvgl-buttons/ui/popup/popup_system.yaml
 
   # This section will add buttons and page to your screen using the ESPHome package system.
   # Each package has all the code required for the button or page (LVGL, sensors, etc)

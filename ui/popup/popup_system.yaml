@@ -53,6 +53,14 @@
 #   - hue_ring_img / kelvin_ring_img : SVG rings reused by per-instance light
 #     color popups (see ui/light/remote.yaml and ui/light/local.yaml).
 
+# Default for the auto-close timeout. A consuming device YAML can override this
+# by setting `popup_timeout_seconds` in its own top-level `substitutions:` block;
+# package substitutions act as defaults and the parent config wins. Defining a
+# default here keeps `${popup_timeout_seconds}` from being undefined (which on
+# ESPHome 2026.6+ leaks a literal into generated C++ and fails to compile).
+substitutions:
+  popup_timeout_seconds: '120'
+
 globals:
   # Popup auto-close timeout in seconds (default 120 seconds)
   - id: popup_timeout_seconds
