@@ -15,6 +15,9 @@ substitutions:
   label_on_color: "white"
   label_off_color: "gray"
   button_text_color: "white"
+  # 4MB-flash board: drop font bit-depth 8->4 to fit the 1.75MB app partition
+  # (bpp:8 overflows by ~92KB). Halves font bitmap data, keeps dual-slot OTA.
+  font_bpp: "4"
 
 esphome:
   name: "clawdmeter-jc4827w543"
