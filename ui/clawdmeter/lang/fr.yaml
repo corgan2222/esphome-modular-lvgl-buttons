@@ -7,14 +7,22 @@
 #   packages:
 #     clawd_lang: !include esphome-modular-lvgl-buttons/ui/clawdmeter/lang/fr.yaml
 #
-# Accented characters (é è à ç …) need a font glyphset that covers them — set
-# `glyphsets: GF_Latin_Core` in your device substitutions (the grid-portrait
-# example already does). See lang/en.yaml for the canonical key list.
+# Accented characters (é è à ç …) need a font glyphset that covers them; this
+# pack selects GF_Latin_Core automatically (see the substitutions block below),
+# so no per-device glyphsets line is needed. See lang/en.yaml for the key list.
 #
 # Format strings keep their printf placeholders (%d %s %.1f %%) VERBATIM — only
 # the words around them are translated. \xC2\xB7 is the UTF-8 middle dot; values
 # are single-quoted so YAML passes the backslash escape through to the lambda.
 substitutions:
+  # ---- font glyph coverage ----
+  # French needs Western-European accents (é è à ç …); GF_Latin_Core covers them.
+  # This pack selects it automatically — no per-device glyphsets line needed.
+  # NOTE: GF_Latin_Core enlarges every font size (~1 MB total) and OVERFLOWS the
+  # app partition on small boards (e.g. jc4827w543, sunton-2432s028). Those need
+  # a board with more app flash, or a custom narrow `glyphs:` list.
+  glyphsets: GF_Latin_Core
+
   # ---- entity names (exposed to Home Assistant) ----
   t_name_burn5:              'Taux conso 5m'
   t_name_burn30:             'Taux conso 30m'

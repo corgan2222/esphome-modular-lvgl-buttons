@@ -261,6 +261,20 @@ lvgl:
             bg_opa: TRANSP
             border_width: 0
             pad_all: 0
+            widgets:
+              # The creature itself is a raw-LVGL canvas built in C++ at boot
+              # (clawd_init -> lv_canvas_create, see clawdmeter_engine.h). ESPHome
+              # only compiles the canvas widget (LV_USE_CANVAS=1) when a canvas
+              # appears in the YAML, so without this the engine fails to build on
+              # any board that doesn't already pull in another canvas-based widget
+              # (e.g. the qrcode in common/sensors_base.yaml). This hidden 1x1
+              # canvas makes the clawdmeter UI self-sufficient: it forces
+              # LV_USE_CANVAS on wherever the UI is included, at a cost of ~2 bytes.
+              - canvas:
+                  id: ${uid}_canvas_probe
+                  width: 1
+                  height: 1
+                  hidden: true
     # Stats page. Same id as the creature page in the single-page default, or a
     # separate page id for the two-page split.
     - id: !extend ${stats_page_id}
