@@ -209,10 +209,10 @@ script:
             float r = id(${uid}_session_reset).state;
             char buf[48];
             if (std::isnan(r)) {
-              snprintf(buf, sizeof(buf), "Current  %d%%", p);
+              snprintf(buf, sizeof(buf), "${t_rmt_session | default("Current  %d%%")}", p);
             } else {
               int m = (int) r;
-              snprintf(buf, sizeof(buf), "Current  %d%%   ·   resets in %dh%02dm",
+              snprintf(buf, sizeof(buf), "${t_rmt_session_reset | default("Current  %d%%   \xC2\xB7   resets in %dh%02dm")}",
                        p, m / 60, m % 60);
             }
             return std::string(buf);
@@ -223,10 +223,10 @@ script:
             float r = id(${uid}_weekly_reset).state;
             char buf[48];
             if (std::isnan(r)) {
-              snprintf(buf, sizeof(buf), "Weekly  %d%%", p);
+              snprintf(buf, sizeof(buf), "${t_rmt_weekly | default("Weekly  %d%%")}", p);
             } else {
               int m = (int) r;
-              snprintf(buf, sizeof(buf), "Weekly  %d%%   ·   resets in %dd%02dh",
+              snprintf(buf, sizeof(buf), "${t_rmt_weekly_reset | default("Weekly  %d%%   \xC2\xB7   resets in %dd%02dh")}",
                        p, m / 1440, (m % 1440) / 60);
             }
             return std::string(buf);
@@ -291,7 +291,7 @@ lvgl:
                   text_font: $text_font
                   text_color: $label_on_color
                   text_align: LEFT
-                  text: "Current  —"
+                  text: ${t_rmt_ph_session | default("Current  —")}
               - bar:
                   id: ${uid}_session_bar
                   width: 100%
@@ -312,7 +312,7 @@ lvgl:
                   text_font: $text_font
                   text_color: $label_on_color
                   text_align: LEFT
-                  text: "Weekly  —"
+                  text: ${t_rmt_ph_weekly | default("Weekly  —")}
               - bar:
                   id: ${uid}_weekly_bar
                   width: 100%

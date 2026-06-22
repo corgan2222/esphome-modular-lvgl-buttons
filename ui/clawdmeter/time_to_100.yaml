@@ -49,21 +49,21 @@ text_sensor:
       // inputs unavailable -> keep last state, else "unbekannt"
       if (!id(${uid}_ttl_usage).has_state() || std::isnan(id(${uid}_ttl_usage).state) ||
           !id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state)) {
-        if (id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "unbekannt")
+        if (id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "${t_ttl_unknown | default("unknown")}")
           return id(${uid}_time_to_100).state;
-        return std::string("unbekannt");
+        return std::string("${t_ttl_unknown | default("unknown")}");
       }
       const float pct = id(${uid}_ttl_usage).state;
       const float rate = id(${rate_id}).state;
       // rate <= 0 -> not climbing -> keep last state, else "unbekannt"
       if (rate <= 0.0f) {
-        if (id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "unbekannt")
+        if (id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "${t_ttl_unknown | default("unknown")}")
           return id(${uid}_time_to_100).state;
-        return std::string("unbekannt");
+        return std::string("${t_ttl_unknown | default("unknown")}");
       }
       const int mins = (int) ((100.0f - pct) / rate * 60.0f);
       char buf[24];
-      snprintf(buf, sizeof(buf), "in %d Min.", mins);
+      snprintf(buf, sizeof(buf), "${t_ttl_mins | default("in %d min")}", mins);
       return std::string(buf);
 
   # The same prediction expressed as the ABSOLUTE wall-clock time the limit is
