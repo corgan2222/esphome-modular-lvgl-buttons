@@ -25,11 +25,11 @@
 #   source_entity  optional  HA usage % sensor (default sensor.SET_ME_session_usage,
 #                            a deliberately invalid placeholder — bind the real
 #                            entity from your device YAML, never edit this file)
-#   name           optional  entity name exposed to HA (default "Clawd Session Time To 100")
+#   name           optional  entity name exposed to HA (default "Session Time To 100")
 #   update_sec     optional  recompute cadence in seconds (default 30)
 #   time_id        optional  id of the time: component (default system_time)
 #   eta_name       optional  entity name for the absolute "100% at HH:MM" sensor
-#                            (default "Clawd Session 100% At")
+#                            (default "Session 100% At")
 
 sensor:
   - platform: homeassistant
@@ -40,7 +40,7 @@ sensor:
 text_sensor:
   - platform: template
     id: ${uid}_time_to_100
-    name: ${name | default("Clawd Session Time To 100")}
+    name: ${name | default("Session Time To 100")}
     icon: mdi:timer-outline
     update_interval: ${update_sec | default(30)}s
     lambda: |-
@@ -71,7 +71,7 @@ text_sensor:
   # device timezone. Backend entity; the stats panel renders it next to a bar.
   - platform: template
     id: ${uid}_eta_clock
-    name: ${eta_name | default("Clawd Session 100% At")}
+    name: ${eta_name | default("Session 100% At")}
     icon: mdi:clock-alert-outline
     update_interval: ${update_sec | default(30)}s
     lambda: |-

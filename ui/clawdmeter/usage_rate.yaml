@@ -16,8 +16,8 @@
 #   rate = (newest - oldest_within_window) / (Δt_hours)
 #
 # Instantiate it once per window you want, e.g. 5m AND 30m:
-#   clawd_burn5:  { uid: clawd_burn5,  name: "Clawd Burn Rate 5m",  window_min: 5 }
-#   clawd_burn30: { uid: clawd_burn30, name: "Clawd Burn Rate 30m", window_min: 30 }
+#   clawd_burn5:  { uid: clawd_burn5,  name: "Burn Rate 5m",  window_min: 5 }
+#   clawd_burn30: { uid: clawd_burn30, name: "Burn Rate 30m", window_min: 30 }
 #
 # Does NOT require engine.yaml. Pure ESPHome, no custom C++ header.
 #
@@ -27,7 +27,7 @@
 #                             the default is an invalid SET_ME placeholder
 #                             (sensor.SET_ME_session_usage) so a missing binding
 #                             reads as "unavailable" instead of a wrong id.
-#   name            optional  entity name exposed to HA (default "Clawd Burn Rate")
+#   name            optional  entity name exposed to HA (default "Burn Rate")
 #   window_min      optional  averaging window in minutes (default 5)
 #   sample_sec      optional  sampling cadence in seconds  (default 30)
 #   round_decimals  optional  displayed decimals          (default 1)
@@ -67,7 +67,7 @@ sensor:
   # computes the windowed slope, so one template sensor owns the whole pipeline.
   - platform: template
     id: ${uid}_rate
-    name: ${name | default("Clawd Burn Rate")}
+    name: ${name | default("Burn Rate")}
     unit_of_measurement: "%/h"
     accuracy_decimals: ${round_decimals | default(1)}
     icon: mdi:fire-alert

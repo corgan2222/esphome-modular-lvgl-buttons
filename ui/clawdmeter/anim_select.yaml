@@ -8,13 +8,13 @@
 #    auto mode where the engine rotates clips on its own.
 #  * Diagnostic entities that surface the auto-mode decision so you can watch
 #    the group switch live in the dashboard:
-#      - sensor "Clawd Usage Group"  -> the 0..3 bucket clawd_usage_group()
+#      - sensor "Usage Group"        -> the 0..3 bucket clawd_usage_group()
 #                                       returns (0 idle / 1 normal / 2 active /
 #                                       3 heavy).
-#      - sensor "Clawd Usage Rate"   -> the raw usage rate in %/min the bucket
+#      - sensor "Usage Rate"         -> the raw usage rate in %/min the bucket
 #                                       is derived from (-1 = still warming up:
 #                                       <2 samples or window < the min window).
-#      - text_sensor "Clawd Usage Diag" -> one glanceable line
+#      - text_sensor "Usage Diag"    -> one glanceable line
 #                                       "<group> | <rate> %/min | <n> smp | <win> min"
 #                                       so a reported group 0 is unambiguous
 #                                       (too few samples vs. rate below threshold).
@@ -33,14 +33,14 @@
 # vars:
 #   uid          required  namespace prefix
 #   select_name  optional  HA entity name for the picker
-#                          (default "Clawd Animation")
+#                          (default "Animation")
 #   current_name optional  HA entity name for the current-clip text sensor
-#                          (default "Clawd Current Animation")
+#                          (default "Current Animation")
 
 select:
   - platform: template
     id: ${uid}_anim_select
-    name: ${select_name | default("Clawd Animation")}
+    name: ${select_name | default("Animation")}
     optimistic: true
     restore_value: true
     options:
@@ -70,7 +70,7 @@ sensor:
   # this flip in the dashboard as the session burn rate climbs.
   - platform: template
     id: ${uid}_usage_group
-    name: ${group_name | default("Clawd Usage Group")}
+    name: ${group_name | default("Usage Group")}
     icon: mdi:speedometer
     accuracy_decimals: 0
     update_interval: 2s
@@ -80,7 +80,7 @@ sensor:
   # up (fewer than 2 samples, or the sample window is shorter than the minimum).
   - platform: template
     id: ${uid}_usage_rate
-    name: ${rate_name | default("Clawd Usage Rate")}
+    name: ${rate_name | default("Usage Rate")}
     icon: mdi:trending-up
     unit_of_measurement: "%/min"
     accuracy_decimals: 3
@@ -90,7 +90,7 @@ sensor:
 text_sensor:
   - platform: template
     id: ${uid}_current_anim
-    name: ${current_name | default("Clawd Current Animation")}
+    name: ${current_name | default("Current Animation")}
     icon: mdi:movie-open-play
     update_interval: 2s
     lambda: |-
@@ -101,7 +101,7 @@ text_sensor:
   # name, raw rate, sample count and the spanned window in minutes.
   - platform: template
     id: ${uid}_usage_diag
-    name: ${diag_name | default("Clawd Usage Diag")}
+    name: ${diag_name | default("Usage Diag")}
     icon: mdi:bug-check-outline
     update_interval: 2s
     lambda: |-

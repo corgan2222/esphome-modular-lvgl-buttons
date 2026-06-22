@@ -22,11 +22,11 @@
 #                            is a deliberately invalid placeholder (never edit
 #                            this file) so a missing binding reads "unavailable".
 #   name           optional  entity name exposed to HA
-#                            (default "Clawd Session Reset Time")
+#                            (default "Session Reset Time")
 #   update_sec     optional  recompute cadence in seconds (default 30)
 #   time_id        optional  id of the time: component (default system_time)
 #   reset_in_name  optional  entity name for the minutes-until-reset sensor
-#                            (default "Clawd Session Reset In")
+#                            (default "Session Reset In")
 
 globals:
   # The parsed reset instant as a UTC epoch, written by the clock lambda below
@@ -42,7 +42,7 @@ sensor:
   # the stats panel renders it. 0 once the reset instant has passed.
   - platform: template
     id: ${uid}_reset_in_min
-    name: ${reset_in_name | default("Clawd Session Reset In")}
+    name: ${reset_in_name | default("Session Reset In")}
     unit_of_measurement: "min"
     accuracy_decimals: 0
     icon: mdi:timer-sand
@@ -63,7 +63,7 @@ text_sensor:
 
   - platform: template
     id: ${uid}_reset_clock
-    name: ${name | default("Clawd Session Reset Time")}
+    name: ${name | default("Session Reset Time")}
     icon: mdi:timer-refresh
     update_interval: ${update_sec | default(30)}s
     lambda: |-
