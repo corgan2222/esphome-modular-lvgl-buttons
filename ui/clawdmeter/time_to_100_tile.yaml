@@ -12,13 +12,23 @@
 # vars:
 #   uid          required  namespace prefix for the LVGL widget ids
 #   ttl_id       required  id of the time_to_100.yaml text_sensor to display
-#   text         optional  tile label prefix (default "Bis 100%")
+#   text         optional  tile label prefix; overrides the language default
+#                          (t_tile_ttl, e.g. "Till 100%" / "Bis 100%")
 #   row          required  grid row
 #   column       required  grid column
 #   row_span     optional  default 1
 #   column_span  optional  default 1
 #   refresh_sec  optional  label refresh cadence in seconds (default 5)
 #   page_id      optional  parent page (default main_page)
+
+# Two-step label resolution so the tile honours BOTH layers without nesting
+# quoted defaults (which the substitution parser rejects): the language pack key
+# t_tile_ttl provides the localized default ("Bis 100%" in de.yaml etc.), and an
+# explicit `text:` var from the device still wins over it. NOTE: these are global
+# substitution names, so include this tile at most once per device.
+substitutions:
+  _ttl_tile_i18n:  ${t_tile_ttl | default("Till 100%")}
+  _ttl_tile_label: ${text | default(_ttl_tile_i18n)}
 
 interval:
   - interval: ${refresh_sec | default(5)}s
@@ -55,7 +65,7 @@ lvgl:
                   id: ${uid}_ttl_lbl
                   text_font: $text_font
                   text_color: $label_off_color
-                  text: ${text | default("Bis 100%")}
+                  text: ${_ttl_tile_label}
               - label:
                   id: ${uid}_ttl_val
                   text_font: $text_font

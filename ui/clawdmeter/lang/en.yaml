@@ -1,0 +1,62 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/lang/en.yaml
+# English (en) locale pack for the Clawdmeter UI — the CANONICAL key reference.
+#
+# English is already the built-in fallback: every reference in the ui/* files is
+# written as ${t_KEY | default("<english>")}, so including NO locale pack yields
+# exactly these strings. This file therefore exists mainly as the authoritative
+# list of keys to copy when adding a new language (e.g. lang/de.yaml) — keep the
+# two in lockstep. Including it explicitly is harmless and makes intent obvious:
+#
+#   packages:
+#     clawd_lang: !include esphome-modular-lvgl-buttons/ui/clawdmeter/lang/en.yaml
+#
+# Format strings keep their printf placeholders (%d %s %.1f %%) VERBATIM — only
+# the words around them are translated. \xC2\xB7 is the UTF-8 middle dot; values
+# are single-quoted so YAML passes the backslash escape through to the lambda.
+substitutions:
+  # ---- entity names (exposed to Home Assistant) ----
+  t_name_burn5:              'Burn Rate 5m'
+  t_name_burn30:             'Burn Rate 30m'
+  t_name_ttl:                'Session Time To 100'
+  t_name_eta:                'Session 100% At'
+  t_name_session_reset_time: 'Session Reset Time'
+  t_name_session_reset_in:   'Session Reset In'
+  t_name_weekly_reset_time:  'Weekly Reset Time'
+  t_name_weekly_reset_in:    'Weekly Reset In'
+  t_name_animation:          'Animation'
+  t_name_current_anim:       'Current Animation'
+  t_name_usage_group:        'Usage Group'
+  t_name_usage_rate:         'Usage Rate'
+  t_name_usage_diag:         'Usage Diag'
+
+  # ---- stats panel: on-display format strings ----
+  t_fmt_session_reset: 'Session %d%% - Reset in %d m - %s'
+  t_fmt_session:       'Session %d%% - %s'
+  t_fmt_weekly:        'Weekly %d%% - %s'
+  t_fmt_extra_credits: 'Extra Usage: %d%% - %.1f Credits'
+  t_fmt_extra:         'Extra Usage: %d%%'
+  t_fmt_ttl_clk:       'Time till 100%% - %dm - %s'
+  t_fmt_ttl:           'Time till 100%% - %s'
+  t_fmt_burn:          'Burn  5m %s  \xC2\xB7  30m %s %%/h'
+
+  # ---- stats panel: static placeholder labels (shown until first repaint) ----
+  t_ph_session: 'Session —'
+  t_ph_weekly:  'Weekly —'
+  t_ph_extra:   'Extra Usage —'
+  t_ph_ttl:     'Time till 100% —'
+  t_ph_burn:    'Burn —'
+
+  # ---- time_to_100 text sensor ----
+  t_ttl_mins:    'in %d min'
+  t_ttl_unknown: 'unknown'
+
+  # ---- remote.yaml: single-page (non-grid) stats labels ----
+  t_rmt_session:       'Current  %d%%'
+  t_rmt_session_reset: 'Current  %d%%   \xC2\xB7   resets in %dh%02dm'
+  t_rmt_weekly:        'Weekly  %d%%'
+  t_rmt_weekly_reset:  'Weekly  %d%%   \xC2\xB7   resets in %dd%02dh'
+  t_rmt_ph_session:    'Current  —'
+  t_rmt_ph_weekly:     'Weekly  —'
+
+  # ---- time_to_100_tile.yaml: optional display tile label ----
+  t_tile_ttl: 'Till 100%'

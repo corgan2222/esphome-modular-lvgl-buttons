@@ -87,10 +87,10 @@ interval:
             std::string clk = id(${session_clock_id}).has_state() ? id(${session_clock_id}).state : "--:--";
             char buf[72];
             if (id(${session_resetin_id}).has_state() && !std::isnan(id(${session_resetin_id}).state))
-              snprintf(buf, sizeof(buf), "Session %d%% - Reset in %d m - %s",
+              snprintf(buf, sizeof(buf), "${t_fmt_session_reset | default("Session %d%% - Reset in %d m - %s")}",
                        p, (int) id(${session_resetin_id}).state, clk.c_str());
             else
-              snprintf(buf, sizeof(buf), "Session %d%% - %s", p, clk.c_str());
+              snprintf(buf, sizeof(buf), "${t_fmt_session | default("Session %d%% - %s")}", p, clk.c_str());
             return std::string(buf);
 
       # ---- Weekly: bar fill + recolour, label with absolute reset time ----
@@ -105,7 +105,7 @@ interval:
             int p = id(${uid}_week_pct).has_state() ? (int) id(${uid}_week_pct).state : 0;
             std::string clk = id(${weekly_clock_id}).has_state() ? id(${weekly_clock_id}).state : "--:--";
             char buf[48];
-            snprintf(buf, sizeof(buf), "Weekly %d%% - %s", p, clk.c_str());
+            snprintf(buf, sizeof(buf), "${t_fmt_weekly | default("Weekly %d%% - %s")}", p, clk.c_str());
             return std::string(buf);
 
       # ---- Extra usage: bar fill + recolour, label with percent + credits ----
@@ -128,9 +128,9 @@ interval:
             int p = id(${uid}_extra_pct).has_state() ? (int) id(${uid}_extra_pct).state : 0;
             char buf[56];
             if (id(${uid}_extra_credits).has_state() && !std::isnan(id(${uid}_extra_credits).state))
-              snprintf(buf, sizeof(buf), "Extra Usage: %d%% - %.1f Credits", p, id(${uid}_extra_credits).state);
+              snprintf(buf, sizeof(buf), "${t_fmt_extra_credits | default("Extra Usage: %d%% - %.1f Credits")}", p, id(${uid}_extra_credits).state);
             else
-              snprintf(buf, sizeof(buf), "Extra Usage: %d%%", p);
+              snprintf(buf, sizeof(buf), "${t_fmt_extra | default("Extra Usage: %d%%")}", p);
             return std::string(buf);
 
       # ---- Time till 100%: bar tracks session %, label shows the ETA clock ----
@@ -154,9 +154,9 @@ interval:
             if (have_min) {
               int mins = (int) ((100.0f - id(${uid}_session_pct).state) / id(${burn30_id}).state * 60.0f);
               if (mins < 0) mins = 0;
-              snprintf(buf, sizeof(buf), "Time till 100%% - %dm - %s", mins, clk.c_str());
+              snprintf(buf, sizeof(buf), "${t_fmt_ttl_clk | default("Time till 100%% - %dm - %s")}", mins, clk.c_str());
             } else {
-              snprintf(buf, sizeof(buf), "Time till 100%% - %s", clk.c_str());
+              snprintf(buf, sizeof(buf), "${t_fmt_ttl | default("Time till 100%% - %s")}", clk.c_str());
             }
             return std::string(buf);
 
@@ -172,7 +172,7 @@ interval:
               snprintf(b30, sizeof(b30), "%.1f", id(${burn30_id}).state);
             else snprintf(b30, sizeof(b30), "--");
             char buf[48];
-            snprintf(buf, sizeof(buf), "Burn  5m %s  \xC2\xB7  30m %s %%/h", b5, b30);
+            snprintf(buf, sizeof(buf), "${t_fmt_burn | default("Burn  5m %s  \xC2\xB7  30m %s %%/h")}", b5, b30);
             return std::string(buf);
 
 lvgl:
@@ -220,7 +220,7 @@ lvgl:
                         text_font: ${stat_font | default("nunito_18")}
                         text_color: $label_on_color
                         text_align: LEFT
-                        text: "Session —"
+                        text: ${t_ph_session | default("Session —")}
                     - bar:
                         id: ${uid}_sess_bar
                         width: 100%
@@ -255,7 +255,7 @@ lvgl:
                         text_font: ${stat_font | default("nunito_18")}
                         text_color: $label_on_color
                         text_align: LEFT
-                        text: "Weekly —"
+                        text: ${t_ph_weekly | default("Weekly —")}
                     - bar:
                         id: ${uid}_week_bar
                         width: 100%
@@ -290,7 +290,7 @@ lvgl:
                         text_font: ${stat_font | default("nunito_18")}
                         text_color: $label_on_color
                         text_align: LEFT
-                        text: "Extra Usage —"
+                        text: ${t_ph_extra | default("Extra Usage —")}
                     - bar:
                         id: ${uid}_extra_bar
                         width: 100%
@@ -325,7 +325,7 @@ lvgl:
                         text_font: ${stat_font | default("nunito_18")}
                         text_color: $label_on_color
                         text_align: LEFT
-                        text: "Time till 100% —"
+                        text: ${t_ph_ttl | default("Time till 100% —")}
                     - bar:
                         id: ${uid}_ttl_bar
                         width: 100%
@@ -347,4 +347,4 @@ lvgl:
                   text_font: ${stat_font | default("nunito_18")}
                   text_color: $label_on_color
                   text_align: LEFT
-                  text: "Burn —"
+                  text: ${t_ph_burn | default("Burn —")}
