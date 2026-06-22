@@ -42,6 +42,12 @@ packages:
   loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
   info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
 
+  # ---- Language pack ----
+  # Compile-time locale: provides every t_* substitution the clawdmeter UI uses.
+  # Swap to lang/de.yaml, lang/fr.yaml or lang/es.yaml (or omit entirely, English
+  # is the built-in default) for another language. Exactly ONE pack.
+  clawd_lang: !include esphome-modular-lvgl-buttons/ui/clawdmeter/lang/en.yaml
+
   clawdmeter: !include
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
     vars:

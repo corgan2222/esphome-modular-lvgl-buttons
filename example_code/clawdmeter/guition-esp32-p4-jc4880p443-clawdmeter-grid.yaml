@@ -85,6 +85,12 @@ packages:
   loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
   info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
 
+  # ---- Language pack ----
+  # Compile-time locale: provides every t_* substitution (on-display strings +
+  # HA entity names). Swap to lang/de.yaml, lang/fr.yaml or lang/es.yaml (or omit
+  # entirely, English is the built-in default) for another language. Exactly ONE pack.
+  clawd_lang: !include esphome-modular-lvgl-buttons/ui/clawdmeter/lang/en.yaml
+
   # ---- Clawdmeter, assembled from individual tiles ----
   # Shared engine — include ONCE. Pulls in the animation engine + sprite data and
   # runs the frame driver; every clawd_* function becomes available afterwards.
@@ -111,7 +117,7 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
     vars:
       uid: clawd_burn5
-      name: "Clawd Burn Rate 5m"
+      name: ${t_name_burn5 | default("Burn Rate 5m")}
       window_min: 5
       source_entity: $ha_session_usage
 
@@ -120,7 +126,7 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
     vars:
       uid: clawd_burn30
-      name: "Clawd Burn Rate 30m"
+      name: ${t_name_burn30 | default("Burn Rate 30m")}
       window_min: 30
       source_entity: $ha_session_usage
 
@@ -132,6 +138,8 @@ packages:
       uid: clawd_ttl
       rate_id: clawd_burn30_rate
       source_entity: $ha_session_usage
+      name: ${t_name_ttl | default("Session Time To 100")}
+      eta_name: ${t_name_eta | default("Session 100% At")}
 
   # Absolute SESSION-reset wall-clock time ("HH:MM") + "reset in xx m", derived
   # on the ESP from the raw reset-time timestamp and the device timezone.
@@ -140,6 +148,8 @@ packages:
     vars:
       uid: clawd_reset
       source_entity: $ha_session_reset
+      name: ${t_name_session_reset_time | default("Session Reset Time")}
+      reset_in_name: ${t_name_session_reset_in | default("Session Reset In")}
 
   # Absolute WEEKLY-reset wall-clock time ("HH:MM"), same compute, fed from the
   # weekly reset-time timestamp. The "reset in" sensor it also emits is unused.
@@ -148,8 +158,8 @@ packages:
     vars:
       uid: clawd_wreset
       source_entity: $ha_weekly_reset
-      name: "Clawd Weekly Reset Time"
-      reset_in_name: "Clawd Weekly Reset In"
+      name: ${t_name_weekly_reset_time | default("Weekly Reset Time")}
+      reset_in_name: ${t_name_weekly_reset_in | default("Weekly Reset In")}
 
   # Stats panel — the on-display right half: session / weekly / extra-usage /
   # time-till-100% bars + a 5m/30m burn line. Pulls the four percentages and the
@@ -180,6 +190,11 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/anim_select.yaml
     vars:
       uid: clawd_anim
+      select_name: ${t_name_animation | default("Animation")}
+      current_name: ${t_name_current_anim | default("Current Animation")}
+      group_name: ${t_name_usage_group | default("Usage Group")}
+      rate_name: ${t_name_usage_rate | default("Usage Rate")}
+      diag_name: ${t_name_usage_diag | default("Usage Diag")}
 
 lvgl:
   pages:

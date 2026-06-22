@@ -73,6 +73,14 @@ packages:
     vars:
       rotation: "0"
 
+  # ---- Language pack ----
+  # Compile-time locale: provides every t_* substitution the clawdmeter UI uses.
+  # Swap to lang/de.yaml, lang/fr.yaml or lang/es.yaml (or omit entirely, English
+  # is the built-in default) for another language. Exactly ONE pack. The pack also
+  # sets `glyphsets` (Kernel for en, Core for de/fr/es); this board's inline fonts
+  # (below) read that via ${glyphsets} so accents follow the pack automatically.
+  clawd_lang: !include esphome-modular-lvgl-buttons/ui/clawdmeter/lang/en.yaml
+
   clawdmeter: !include
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
     vars:
@@ -124,19 +132,23 @@ font:
     id: nunito_20
     size: 20
     bpp: 8
+    glyphsets: ${glyphsets | default("GF_Latin_Kernel")}
 
   - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"
     id: nunito_18
     size: 18
     bpp: 8
+    glyphsets: ${glyphsets | default("GF_Latin_Kernel")}
 
   # text_font for this 320x240 board: keeps the stats labels on one line.
   - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"
     id: nunito_14
     size: 14
     bpp: 8
+    glyphsets: ${glyphsets | default("GF_Latin_Kernel")}
 
   - file: "esphome-modular-lvgl-buttons/assets/fonts/Nunito-SemiBold.ttf"
     id: nunito_12
     size: 12
     bpp: 8
+    glyphsets: ${glyphsets | default("GF_Latin_Kernel")}

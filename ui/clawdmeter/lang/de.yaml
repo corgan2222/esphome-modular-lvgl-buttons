@@ -16,6 +16,14 @@
 # the words around them are translated. \xC2\xB7 is the UTF-8 middle dot; values
 # are single-quoted so YAML passes the backslash escape through to the lambda.
 substitutions:
+  # ---- font glyph coverage ----
+  # German needs Western-European accents (ä ö ü ß); GF_Latin_Core covers them.
+  # This pack selects it automatically — no per-device glyphsets line needed.
+  # NOTE: GF_Latin_Core enlarges every font size (~1 MB total) and OVERFLOWS the
+  # app partition on small boards (e.g. jc4827w543, sunton-2432s028). Those need
+  # a board with more app flash, or a custom narrow `glyphs:` list.
+  glyphsets: GF_Latin_Core
+
   # ---- entity names (exposed to Home Assistant) ----
   t_name_burn5:              'Verbrauchsrate 5m'
   t_name_burn30:             'Verbrauchsrate 30m'

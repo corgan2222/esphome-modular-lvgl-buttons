@@ -14,6 +14,12 @@
 # the words around them are translated. \xC2\xB7 is the UTF-8 middle dot; values
 # are single-quoted so YAML passes the backslash escape through to the lambda.
 substitutions:
+  # ---- font glyph coverage ----
+  # English is pure ASCII, so pin the minimal kernel set (= the fonts.yaml
+  # default). This keeps the firmware byte-for-byte as small as the no-pack
+  # build — zero size cost. Non-English packs raise this to GF_Latin_Core.
+  glyphsets: GF_Latin_Kernel
+
   # ---- entity names (exposed to Home Assistant) ----
   t_name_burn5:              'Burn Rate 5m'
   t_name_burn30:             'Burn Rate 30m'
