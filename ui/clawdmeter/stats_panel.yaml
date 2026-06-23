@@ -8,6 +8,7 @@
 #   Extra Usage: 77% - 15.5 Credits            [#######---]
 #   Time till 100% - 21m - 21:34               [#####-----]
 #   Burn  5m 12.0  ·  30m 9.2 %/h
+#   Runway - 34m to spare
 #
 # Rows whose source entity is unavailable are hidden so the panel reflows: the
 # Extra Usage row disappears entirely when the user has disabled extra usage in
@@ -39,6 +40,11 @@
 #                                 SYMMETRICALLY. When unset the panel keeps its
 #                                 default 14/18 split; set it to give the panel an
 #                                 even gap to both screen edges (e.g. portrait).
+#   show_runway        optional  "true"/"false" (default "false"). Shows the
+#                                 on-display "Runway - …" verdict line. The value
+#                                 is always computed; this only toggles whether the
+#                                 line is drawn. Independent of runway.yaml (which
+#                                 exposes the same verdict as a backend HA entity).
 # NOTE: each *_entity default is a deliberately invalid SET_ME_* placeholder —
 # bind the real HA entities from your device YAML via `vars:`, never edit this
 # file. A missing binding then reads as "unavailable" instead of a wrong id.
@@ -173,6 +179,40 @@ interval:
             else snprintf(b30, sizeof(b30), "--");
             char buf[48];
             snprintf(buf, sizeof(buf), "${t_fmt_burn | default("Burn  5m %s  \xC2\xB7  30m %s %%/h")}", b5, b30);
+            return std::string(buf);
+
+      # ---- Runway line: does the session reset BEFORE it hits the limit? ----
+      # Bottom-line verdict, computed inline from the SAME inputs as the rows
+      # above (session % + 30m burn + "reset in" minutes) so it needs no extra
+      # wiring and always agrees with them. T_reset vs T_limit = (100-%)/burn*60.
+      # The runway.yaml backend exposes the same verdict to HA; this is its
+      # on-display twin. Burn is empty for the first minutes after boot -> "—".
+      - lvgl.label.update:
+          id: ${uid}_runway_lbl
+          text: !lambda |-
+            bool ok = id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state) &&
+                      id(${burn30_id}).has_state() && !std::isnan(id(${burn30_id}).state) &&
+                      id(${session_resetin_id}).has_state() && !std::isnan(id(${session_resetin_id}).state);
+            char vbuf[24];
+            if (!ok) {
+              snprintf(vbuf, sizeof(vbuf), "${t_runway_unknown | default("unknown")}");
+            } else {
+              float rate = id(${burn30_id}).state;
+              if (rate <= 0.0f) {
+                snprintf(vbuf, sizeof(vbuf), "${t_runway_clear | default("clear")}");
+              } else {
+                float t_reset = id(${session_resetin_id}).state;
+                if (t_reset < 0.0f) t_reset = 0.0f;
+                float t_limit = (100.0f - id(${uid}_session_pct).state) / rate * 60.0f;
+                if (t_limit < 0.0f) t_limit = 0.0f;
+                if (t_reset <= t_limit)
+                  snprintf(vbuf, sizeof(vbuf), "${t_runway_spare | default("%dm to spare")}", (int) (t_limit - t_reset));
+                else
+                  snprintf(vbuf, sizeof(vbuf), "${t_runway_short | default("%dm short")}", (int) (t_reset - t_limit));
+              }
+            }
+            char buf[48];
+            snprintf(buf, sizeof(buf), "${t_fmt_runway | default("Runway - %s")}", vbuf);
             return std::string(buf);
 
 lvgl:
@@ -348,3 +388,14 @@ lvgl:
                   text_color: $label_on_color
                   text_align: LEFT
                   text: ${t_ph_burn | default("Burn —")}
+              # Runway verdict line (reset vs limit). Hidden by default — opt in
+              # per device with `show_runway: "true"`. When hidden it also drops
+              # out of the flex column, so no empty gap is left behind.
+              - label:
+                  id: ${uid}_runway_lbl
+                  width: 100%
+                  text_font: ${stat_font | default("nunito_18")}
+                  text_color: $label_on_color
+                  text_align: LEFT
+                  hidden: ${ "false" if (show_runway | default("false")) == "true" else "true" }
+                  text: ${t_ph_runway | default("Runway —")}

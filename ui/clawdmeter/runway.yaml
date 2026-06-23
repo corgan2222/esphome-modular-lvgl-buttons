@@ -1,0 +1,102 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/runway.yaml
+# ON-DEVICE "Runway" verdict. Combines the two predictions the Clawdmeter already
+# computes — the time until the plan RESETS and the time until usage hits the
+# LIMIT (100%) at the current burn rate — into a single bottom-line answer:
+#
+#   does the session RESET before it runs into the limit (safe), or does it run
+#   into the LIMIT first (over)?
+#
+#   T_reset = minutes until the session/weekly reset   (from a reset-clock sensor)
+#   T_limit = (100 - usage) / burn * 60  [min]          (same calc as time_to_100)
+#
+#   T_reset <= T_limit -> resets first  -> SAFE: "<slack>m to spare"
+#   T_limit <  T_reset -> hits limit first -> OVER: "<deficit>m short"
+#   burn <= 0          -> not climbing  -> "clear" (never reaches the limit)
+#
+# It also exposes a numeric PACE ratio = T_reset / T_limit: > 1 means you are
+# burning fast enough to hit the limit that many times over before the reset
+# (i.e. too fast by that factor); <= 1 means head-room. Both are BACKEND device
+# entities (they have a `name:`), shown in the ESPHome dashboard / Home Assistant.
+# No LVGL here — for a display tile use runway_tile.yaml, or read the verdict
+# inline in stats_panel.yaml.
+#
+# CAVEAT: the burn rate is a short trailing window (bursty), so Runway is an
+# "if you keep this exact pace up" projection, not a guarantee.
+#
+# Pair it with the SAME burn-rate (30m) and reset-"in" sensors the rest of the
+# Clawdmeter uses:
+#   clawd_burn30: { file: usage_rate.yaml,         vars: { uid: clawd_burn30, window_min: 30 } }
+#   clawd_reset:  { file: session_reset_clock.yaml, vars: { uid: clawd_reset } }
+#   clawd_rw:     { file: runway.yaml, vars: { uid: clawd_rw, rate_id: clawd_burn30_rate,
+#                                              resetin_id: clawd_reset_reset_in_min } }
+#
+# Does NOT require engine.yaml. Pure ESPHome, no custom C++ header.
+#
+# vars:
+#   uid            required  namespace prefix (exposed text_sensor id ${uid}_runway)
+#   rate_id        required  id of the on-device burn-rate sensor to use (the 30m one)
+#   resetin_id     required  id of the "reset in" minutes sensor (session_reset_clock.yaml)
+#   source_entity  optional  HA usage % sensor (default sensor.SET_ME_session_usage,
+#                            a deliberately invalid placeholder — bind the real
+#                            entity from your device YAML, never edit this file)
+#   name           optional  entity name for the verdict text sensor (default "Session Runway")
+#   ratio_name     optional  entity name for the numeric pace sensor (default "Session Runway Pace")
+#   update_sec     optional  recompute cadence in seconds (default 30)
+
+sensor:
+  - platform: homeassistant
+    id: ${uid}_runway_usage
+    entity_id: ${source_entity | default("sensor.SET_ME_session_usage")}
+    internal: true
+
+  # Numeric PACE ratio = T_reset / T_limit. > 1 -> burning too fast (would hit the
+  # limit before the reset by that factor); <= 1 -> head-room. 0 when not climbing.
+  - platform: template
+    id: ${uid}_runway_ratio
+    name: ${ratio_name | default("Session Runway Pace")}
+    icon: mdi:speedometer
+    unit_of_measurement: "x"
+    accuracy_decimals: 2
+    update_interval: ${update_sec | default(30)}s
+    lambda: |-
+      if (!id(${uid}_runway_usage).has_state() || std::isnan(id(${uid}_runway_usage).state) ||
+          !id(${resetin_id}).has_state() || std::isnan(id(${resetin_id}).state) ||
+          !id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state))
+        return {};
+      const float rate = id(${rate_id}).state;
+      if (rate <= 0.0f) return 0.0f;          // not climbing -> zero pace
+      float t_reset = id(${resetin_id}).state;
+      if (t_reset < 0.0f) t_reset = 0.0f;
+      float t_limit = (100.0f - id(${uid}_runway_usage).state) / rate * 60.0f;
+      if (t_limit <= 0.0f) return 99.0f;      // already at/over the limit
+      return t_reset / t_limit;
+
+text_sensor:
+  - platform: template
+    id: ${uid}_runway
+    name: ${name | default("Session Runway")}
+    icon: mdi:airport
+    update_interval: ${update_sec | default(30)}s
+    lambda: |-
+      // ESPHome template lambdas do not capture `this`; reach our own published
+      // state via the component id. inputs unavailable -> keep last, else unknown.
+      if (!id(${uid}_runway_usage).has_state() || std::isnan(id(${uid}_runway_usage).state) ||
+          !id(${resetin_id}).has_state() || std::isnan(id(${resetin_id}).state) ||
+          !id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state)) {
+        if (id(${uid}_runway).has_state() && id(${uid}_runway).state != "${t_runway_unknown | default("unknown")}")
+          return id(${uid}_runway).state;
+        return std::string("${t_runway_unknown | default("unknown")}");
+      }
+      const float rate = id(${rate_id}).state;
+      // not climbing -> the limit is never reached, the reset always wins
+      if (rate <= 0.0f) return std::string("${t_runway_clear | default("clear")}");
+      float t_reset = id(${resetin_id}).state;
+      if (t_reset < 0.0f) t_reset = 0.0f;
+      float t_limit = (100.0f - id(${uid}_runway_usage).state) / rate * 60.0f;
+      if (t_limit < 0.0f) t_limit = 0.0f;
+      char buf[32];
+      if (t_reset <= t_limit)
+        snprintf(buf, sizeof(buf), "${t_runway_spare | default("%dm to spare")}", (int) (t_limit - t_reset));
+      else
+        snprintf(buf, sizeof(buf), "${t_runway_short | default("%dm short")}", (int) (t_reset - t_limit));
+      return std::string(buf);
