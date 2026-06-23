@@ -115,6 +115,13 @@ display:
       swap_xy: true
       mirror_x: false
       mirror_y: false
+    # 320x240 landscape with swap_xy. ILI9341 model is natively 240x320, so the
+    # validator computes native_width from the model default (240) and rejects an
+    # explicit width:320 as "Invalid offsets". pad_width/pad_height:0 force native
+    # to be derived from THIS config's own width/height, preserving the exact
+    # original 320x240 + swap behavior. (mipi/__init__.py get_dimensions)
     dimensions:
-      height: 240
       width: 320
+      height: 240
+      pad_width: 0
+      pad_height: 0
