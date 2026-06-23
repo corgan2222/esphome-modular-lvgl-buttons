@@ -1,0 +1,284 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame.yaml
+# OPTIONAL "pace frame" — Option A (YAML-only). Draws a coloured border on an
+# EXISTING LVGL tile widget (by id) whose colour reflects the runway PACE ratio
+# (runway.yaml). It frames the creature's outer grid tile
+# (`<creature_uid>_creature_root`), so on a wide top tile the frame is a wide
+# rectangle with black side-gaps to the square creature. Pure YAML: it styles a
+# widget that already has an LVGL id, so it needs NO change to clawdmeter_engine.h.
+#
+#   no value / unknown    -> no border          (nothing to say yet)
+#   ratio <  green_max     -> green   0x43A047   (plenty of head-room, ratio < 1)
+#   ratio <  orange_max    -> orange  0xFFB300   (cutting it close, nearing 1)
+#   ratio >= orange_max    -> red     0xE53935   (at/over the limit before reset)
+#
+# The live, HA-exposed switch `${uid}_pace_breathe_sw` is the runtime show/hide
+# master for the WHOLE frame: OFF -> no frame at all; ON -> frame shown, with
+# orange/red BREATHING (an opacity pulse) and GREEN solid (calm head-room never
+# pulses). The `show_from` var additionally suppresses the lower bands entirely
+# (e.g. only warn from orange up) while the switch is on.
+#
+# DEFAULT OFF — this package does nothing unless a device YAML includes it. To
+# turn it on, add an include for this file, point `ratio_id` at the runway pace
+# sensor (`<runway_uid>_runway_ratio`) and `target_id` at the creature's tile
+# (`<creature_uid>_creature_root`). It can be muted in place — without removing
+# the include — via `enabled: "false"`.
+#
+# Colours mirror stats_panel/usage_bar (green 0x43A047 / orange 0xFFB300 /
+# red 0xE53935) so the frame reads the same as the on-display usage bars.
+#
+# REQUIRES (only where included):
+#   ui/clawdmeter/creature.yaml — provides the target tile widget (target_id)
+#   ui/clawdmeter/runway.yaml   — provides the pace ratio sensor (ratio_id)
+#
+# vars:
+#   uid           required  namespace prefix for this package's interval / global /
+#                           switch ids
+#   ratio_id      required  id of the runway pace ratio sensor to colour from
+#                           (<runway_uid>_runway_ratio)
+#   target_id     required  id of the LVGL widget to frame (e.g.
+#                           <creature_uid>_creature_root)
+#   enabled       optional  "true"/"false" compile-time master switch (default
+#                           "true"). When "false" the frame is cleared once and
+#                           the lambda no-ops — no global/switch needed to mute.
+#   width         optional  border thickness in px (default 3)
+#   green_max     optional  ratio strictly below this -> green  (default 0.90)
+#   orange_max    optional  ratio strictly below this -> orange; at/above -> red
+#                           (default 1.00)
+#   show_from     optional  display threshold band: "green" | "orange" | "red"
+#                           (default "green"). The frame only draws once the
+#                           current band is at/above this level; lower bands are
+#                           suppressed exactly like "no value". e.g. "orange"
+#                           hides the calm green frame and only shows orange/red.
+#   debug_id      optional  id of an int global (0/1/2/3) that FORCES the band for
+#                           bench-testing: 0 = normal runway logic, 1 = green,
+#                           2 = orange, 3 = red. While non-zero the no-value and
+#                           show_from gates are bypassed so the chosen band always
+#                           draws. Default "" (feature off — compiles to dbg 0, no
+#                           effect). Wire it to ui/clawdmeter/pace_frame_debug.yaml.
+#   poll_sec      optional  how often to re-evaluate band/state (default 3s). The
+#                           breathing pulse is self-driven by an infinite lv_anim,
+#                           so this interval only RECONFIGURES on change; it does
+#                           NOT drive the animation. The lambda no-ops when band,
+#                           state, want-breathe and colour are all unchanged.
+#   breathe_default     optional  initial value of the live breathe global, "true"
+#                                 /"false" (default "true"). Persisted via
+#                                 restore_value.
+#   breathe_switch_name optional  name: for the exposed pace-frame visibility
+#                                 switch (default "Pace Frame"). NOTE: changing
+#                                 this also changes the HA entity_id.
+#   breathe_switch_icon optional  mdi icon for the switch (default
+#                                 "mdi:image-frame"); sent to HA, not rendered
+#                                 on-device, so any mdi name is valid.
+#   breathe_ms_slow     optional  half-period (ms) of the orange pulse, also the
+#                                 reverse half (default 1400)
+#   breathe_ms_fast     optional  half-period (ms) of the faster red pulse
+#                                 (default 700)
+#   breathe_min_opa     optional  dim floor the pulse fades down to, 0..255
+#                                 (default 60); peak is always LV_OPA_COVER (255)
+#
+# Green never breathes (calm head-room). When the live ${uid}_pace_breathe
+# global/switch is ON, orange/red breathe and green is solid; when it is OFF the
+# whole frame is hidden. The "enabled" var is the hard compile-time kill and
+# takes precedence over everything (checked first, before any state).
+
+globals:
+  # Live "breathe" master, toggled from HA / the switch below. Read fresh each
+  # tick into want_breathe so flipping it takes effect on the next poll without
+  # a reboot. restore_value keeps the user's choice across reboots.
+  - id: ${uid}_pace_breathe
+    type: bool
+    restore_value: yes
+    initial_value: "${breathe_default | default('true')}"
+
+switch:
+  # Live HA-exposed master for the pace frame. Writing it just sets the global;
+  # the interval lambda picks up the change on its next tick: OFF hides the whole
+  # frame, ON shows it (orange/red breathing, green solid). The default name is
+  # "Pace Frame" — it gates visibility of the whole frame, not only the pulse.
+  - platform: template
+    id: ${uid}_pace_breathe_sw
+    name: ${breathe_switch_name | default("Pace Frame")}
+    icon: ${breathe_switch_icon | default("mdi:image-frame")}
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    lambda: 'return id(${uid}_pace_breathe);'
+    turn_on_action:
+      - globals.set:
+          id: ${uid}_pace_breathe
+          value: "true"
+    turn_off_action:
+      - globals.set:
+          id: ${uid}_pace_breathe
+          value: "false"
+
+interval:
+  - interval: ${poll_sec | default(3)}s
+    id: ${uid}_tick
+    then:
+      - lambda: |-
+          // ============================================================================
+          // pace_frame — per-tick band evaluator + lv_anim breathing driver.
+          //
+          // The poll interval ONLY (re)configures state when something meaningful
+          // changed (band / visual-state / want-breathe / colour). The breathing PULSE
+          // is self-driven by an infinite lv_anim on border_opa, so this lambda never
+          // animates frame-by-frame — it just (re)builds or tears down that anim on the
+          // rare ticks where the situation changes. Change-guard no-op philosophy:
+          // if nothing relevant changed since last tick, return without touching LVGL.
+          //
+          // Visual state:  -1 cold-start sentinel | 0 cleared (no border) |
+          //                 1 solid border | 2 breathing border
+          // Band id:        0 green | 1 orange | 2 red  (also the show_from gate scale)
+          // ============================================================================
+
+          // Persisted across ticks. last_band starts < 0 so the FIRST real tick always
+          // repaints (cold-start width guard: we test `< 0`, NOT `== -1`, so any negative
+          // sentinel still forces a first paint even when the very first tick lands
+          // straight in a shown/breathing band).
+          static int      last_band  = -2;   // 0/1/2 band id, or < 0 = nothing drawn yet
+          static int      last_state = -1;   // -1/0/1/2 visual state (see header)
+          static bool     last_want  = false;
+          static uint32_t last_col   = 0;
+
+          lv_obj_t *tgt = id(${target_id});
+
+          // Animation exec callback for border opacity. MUST go through this
+          // captureless lambda (decays to void(*)(void*,int32_t)) instead of
+          // casting lv_obj_set_style_border_opa directly: that setter takes
+          // THREE args (obj, value, selector), so a raw cast to the 2-arg
+          // lv_anim_exec_xcb_t leaves `selector` UNDEFINED -> the opacity lands
+          // on a garbage style part and the visible LV_PART_MAIN border never
+          // pulses (this was the "doesn't breathe" bug). A free function /
+          // #define is unusable here (ESPHome Jinja line_statement_prefix="#");
+          // a captureless lambda is the lambda-safe equivalent. The SAME pointer
+          // is reused for every lv_anim_delete below so deletes match by
+          // (var, exec_cb).
+          static lv_anim_exec_xcb_t pf_opa_cb =
+              [](void *o, int32_t v) {
+                lv_obj_set_style_border_opa((lv_obj_t *) o, (lv_opa_t) v, LV_PART_MAIN);
+              };
+
+          // Local clear helper. NOTE: this is a C++ lambda, deliberately NOT a
+          // preprocessor macro — ESPHome's substitution Jinja sets
+          // line_statement_prefix="#", so ANY line starting with '#' (e.g. #define /
+          // #undef) is parsed as a Jinja statement and aborts the config with a
+          // TemplateSyntaxError. A captured lambda is the lambda-safe equivalent.
+          // Fully clears the frame (stop pulse, drop width) and marks state 0, so every
+          // suppression path below behaves identically.
+          auto pf_clear = [&]() {
+            if (last_state != 0) {
+              last_state = 0;
+              last_band  = -2;
+              lv_anim_delete(tgt, pf_opa_cb);
+              lv_obj_set_style_border_opa(tgt, LV_OPA_COVER, LV_PART_MAIN);
+              lv_obj_set_style_border_width(tgt, 0, LV_PART_MAIN);
+              lv_obj_invalidate(tgt);
+            }
+          };
+
+          // (1) enabled — compile-time master kill, evaluated FIRST. A disabled instance
+          // clears the border + stops any anim ONCE, then no-ops forever.
+          if (! ${ "true" if (enabled | default("true")) == "true" else "false" }) {
+            pf_clear();
+            return;
+          }
+
+          // (1b) Live visibility master: the HA switch ${uid}_pace_breathe_sw
+          // (mirrored by the ${uid}_pace_breathe global) gates the WHOLE frame.
+          // OFF -> no frame at all (cleared once, then no-op); ON -> frame shown
+          // (orange/red breathe, green solid). Runtime show/hide, not just a
+          // pulse toggle.
+          if (!id(${uid}_pace_breathe)) {
+            pf_clear();
+            return;
+          }
+
+          // (1c) DEBUG band override (default OFF). When the optional debug_id int
+          // global is non-zero (1=green / 2=orange / 3=red) we FORCE that band and
+          // skip the no-value + show_from gates entirely, so the chosen band always
+          // draws — for bench-testing the breathing pulse without waiting for real
+          // runway data to climb. debug_id unset -> dbg compiles to a literal 0 (no
+          // global referenced) -> normal runway logic, zero overhead. Wire it to
+          // ui/clawdmeter/pace_frame_debug.yaml's ${uid}_pace_debug select.
+          const int dbg = ${ ("id(" ~ (debug_id | default("")) ~ ")") if (debug_id | default("")) != "" else "0" };
+          int band;
+          if (dbg != 0) {
+            band = dbg - 1;   // 1/2/3 -> band 0/1/2
+          } else {
+            // (2) No value -> no border (nothing to say yet).
+            if (!id(${ratio_id}).has_state() || std::isnan(id(${ratio_id}).state)) {
+              pf_clear();
+              return;
+            }
+
+            // (3) Classify the current band from the pace ratio.
+            //   r < green_max   -> green  (band 0)  — head-room, never breathes
+            //   r < orange_max  -> orange (band 1)  — breathes
+            //   r >= orange_max -> red    (band 2)  — breathes
+            // (r == 0.0 "not climbing" falls into green, the calm band.)
+            const float r = id(${ratio_id}).state;
+            band = (r < ${green_max  | default(0.90)}f) ? 0
+                 : (r < ${orange_max | default(1.00)}f) ? 1
+                                                        : 2;
+
+            // (4) show_from display gate. min_level is the lowest band id that is allowed
+            // to draw at all; anything below it is suppressed exactly like "no value".
+            const int min_level = ${ "2" if (show_from | default("green")) == "red" else "1" if (show_from | default("green")) == "orange" else "0" };
+            if (band < min_level) {
+              pf_clear();
+              return;
+            }
+          }
+
+          // (5) Resolve target colour + whether this band is allowed to breathe.
+          // Green NEVER breathes. Orange/red breathe only while the live switch is on.
+          const uint32_t col = (band == 0) ? 0x43A047
+                             : (band == 1) ? 0xFFB300
+                                           : 0xE53935;
+          const bool want_breathe = id(${uid}_pace_breathe) && (band != 0);
+          const int  want_state   = want_breathe ? 2 : 1;
+          const int  w            = ${width | default(3)};
+
+          // (6) Change-guard: if band, visual-state, want flag and colour are all
+          // unchanged AND we have already drawn at least once, this tick is a no-op.
+          if (last_band >= 0 && band == last_band && want_state == last_state &&
+              want_breathe == last_want && col == last_col) {
+            return;
+          }
+
+          last_band  = band;
+          last_state = want_state;
+          last_want  = want_breathe;
+          last_col   = col;
+
+          // (7) Tear down any running pulse before reconfiguring — we always rebuild the
+          // exact state we want from a known baseline (anim removed, opa = COVER).
+          lv_anim_delete(tgt, pf_opa_cb);
+
+          // Static colour + width are shared by both solid and breathing states.
+          lv_obj_set_style_border_color(tgt, lv_color_hex(col), LV_PART_MAIN);
+          lv_obj_set_style_border_width(tgt, w, LV_PART_MAIN);
+
+          if (want_state == 1) {
+            // Solid: full opacity, no pulse.
+            lv_obj_set_style_border_opa(tgt, LV_OPA_COVER, LV_PART_MAIN);
+            lv_obj_invalidate(tgt);
+            return;
+          }
+
+          // (8) Breathing: infinite, self-driving lv_anim that fades border_opa between a
+          // dim floor and full cover and back (reverse_duration gives the "exhale").
+          // Red breathes faster than orange for added urgency; both periods come from
+          // substitutions so they stay tunable without editing this file.
+          const uint32_t period = (band == 2) ? ${breathe_ms_fast | default(700)}
+                                              : ${breathe_ms_slow | default(1400)};
+          lv_anim_t a;
+          lv_anim_init(&a);
+          lv_anim_set_var(&a, tgt);
+          lv_anim_set_exec_cb(&a, pf_opa_cb);
+          lv_anim_set_values(&a, ${breathe_min_opa | default(60)}, LV_OPA_COVER);
+          lv_anim_set_duration(&a, period);
+          lv_anim_set_reverse_duration(&a, period);   // real vendored fn (NOT lv_anim_set_playback_duration)
+          lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+          lv_anim_start(&a);
+          lv_obj_invalidate(tgt);

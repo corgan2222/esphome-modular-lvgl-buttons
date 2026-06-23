@@ -179,6 +179,38 @@ packages:
       name: ${t_name_runway | default("Session Runway")}
       ratio_name: ${t_name_runway_ratio | default("Session Runway Pace")}
 
+  # Pace frame (Option A, OPTIONAL / default-off elsewhere) — colours a thin
+  # border on the creature's OUTER TILE from the runway pace ratio
+  # (clawd_rw_runway_ratio): no value -> no border, < 0.90 green, < 1.00 orange,
+  # >= 1.00 red. Pure YAML (no engine change); frames the wide top tile so there
+  # are black side-gaps to the square creature. Mute in place via enabled "false".
+  #
+  # show_from = lowest band that draws at all: "green" (default, all bands) |
+  # "orange" (hide the calm green frame, warn from orange up) | "red" (only at/
+  # over the limit). Orange/red additionally BREATHE (opacity pulse). The
+  # HA-exposed switch "Pace Frame" (clawd_pf_pace_breathe_sw) is a whole-frame
+  # visibility master: ON shows the frame (orange/red breathe, green solid),
+  # OFF hides it entirely. Toggle it live from HA without a reflash.
+  clawd_pace_frame: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame.yaml
+    vars:
+      uid: clawd_pf
+      ratio_id: clawd_rw_runway_ratio
+      target_id: clawd_c_creature_root
+      enabled: "true"
+      width: "3"
+      show_from: "orange"   # "green" = show all bands | "orange" = warn from orange up | "red" = only over-limit
+      # debug_id: "clawd_pf_pace_debug"   # DEBUG (disabled): re-enable TOGETHER with the clawd_pace_frame_debug include below
+
+  # DEBUG-ONLY pace-frame band forcer (DISABLED). Re-enable BOTH this include AND
+  # the debug_id var above together — HA select "Pace Frame Debug" (auto/green/
+  # orange/red) to watch each band + the breathing pulse on the bench without
+  # waiting for real runway data. uid MUST match the clawd_pace_frame include.
+  # clawd_pace_frame_debug: !include
+  #   file: esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame_debug.yaml
+  #   vars:
+  #     uid: clawd_pf
+
   # Stats panel — the on-display BOTTOM half: session / weekly / extra-usage /
   # time-till-100% bars + a 5m/30m burn line. Pulls the four percentages and the
   # credits from HA, and reads every derived time value from the backend
