@@ -31,6 +31,8 @@
 #   window_min      optional  averaging window in minutes (default 5)
 #   sample_sec      optional  sampling cadence in seconds  (default 30)
 #   round_decimals  optional  displayed decimals          (default 1)
+#   reset_drop      optional  downward step in usage points that counts as a
+#                             session reset -> flush the window (default 5)
 #   internal        optional  "true" keeps the rate device-internal / unexposed
 #                             (use for a 30m rate you only feed into time_to_100);
 #                             default "false" = exposed in the ESPHome dashboard
@@ -79,6 +81,27 @@ sensor:
       }
       const float now = (float) millis() / 1000.0f;
       const float cur = id(${uid}_src).state;
+
+      // ---- Session-reset detection -------------------------------------
+      // Usage % only ever climbs within a session; at every reset (~5h) it
+      // steps sharply DOWN to ~0. Differentiating across that downward step
+      // would yield a large, meaningless NEGATIVE rate for one whole window
+      // (e.g. ~-1000 %/h on the 5m, ~-170 %/h on the 30m). When the new
+      // sample drops more than `reset_drop` points below the previous one,
+      // treat it as a reset: flush the ring so the window only ever spans
+      // post-reset samples, seed it with this point, and publish 0 (nothing
+      // burned yet). Compare against the previous newest BEFORE pushing.
+      if (id(${uid}_buf_count) > 0) {
+        const int prev = (id(${uid}_buf_head) + 80 - 1) % 80;
+        if (cur < id(${uid}_buf_v)[prev] - ${reset_drop | default(5)}) {
+          id(${uid}_buf_t)[0] = now;
+          id(${uid}_buf_v)[0] = cur;
+          id(${uid}_buf_head) = 1;
+          id(${uid}_buf_count) = 1;
+          return 0.0f;
+        }
+      }
+
       // push the new sample into the ring buffer
       int h = id(${uid}_buf_head);
       id(${uid}_buf_t)[h] = now;
@@ -103,4 +126,9 @@ sensor:
       }
       const float dt = tn - id(${uid}_buf_t)[oldest];
       if (dt <= 0.0f) return {};
-      return (vn - id(${uid}_buf_v)[oldest]) / (dt / 3600.0f);  // %/h
+      float rate = (vn - id(${uid}_buf_v)[oldest]) / (dt / 3600.0f);  // %/h
+      // Burn rate is consumption and can never be negative. The reset detector
+      // above catches the big step-down; this floors any residual source wobble
+      // (or the lone post-reset sample) at 0 so the line never shows negative.
+      if (rate < 0.0f) rate = 0.0f;
+      return rate;

@@ -58,6 +58,26 @@
 #   ttl_eta_id         required  id of the "100% at" ETA text_sensor
 #   burn5_id           required  id of the 5m burn-rate sensor
 #   burn30_id          required  id of the 30m burn-rate sensor
+#   credits_hold_ms    optional  how long (ms) to HOLD the last good extra-credits
+#                                 reading when the HA source flaps to 0 /
+#                                 unavailable (poll artifact, not a billing
+#                                 reset). Default 600000 (10 min). After it the
+#                                 real state wins: a persistent 0 shows as
+#                                 "0.0 Credits", a truly gone sensor drops the
+#                                 credits suffix and shows just the percent.
+
+globals:
+  # De-glitch state for the extra-credits read-out (see the extra-usage label).
+  #   ${uid}_credits_last     last accepted credits value, -1 = none yet
+  #   ${uid}_credits_last_ms  millis() when it was accepted (for the TTL)
+  - id: ${uid}_credits_last
+    type: float
+    restore_value: false
+    initial_value: '-1.0f'
+  - id: ${uid}_credits_last_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
 sensor:
   - platform: homeassistant
@@ -132,9 +152,45 @@ interval:
           id: ${uid}_extra_lbl
           text: !lambda |-
             int p = id(${uid}_extra_pct).has_state() ? (int) id(${uid}_extra_pct).state : 0;
+
+            // ---- Extra-credits de-glitch (hold last good, with a TTL) -------
+            // The HA source sensor flaps between its real value and 0 /
+            // unavailable every few minutes (poll artifact, NOT a billing
+            // reset — the real value persists between flaps, it never declines
+            // monotonically). Hold the last good reading so the line doesn't
+            // flicker; if no good reading arrives within `credits_hold_ms`, stop
+            // holding and show the real state — a persistent 0 becomes
+            // "0.0 Credits", a truly gone sensor drops the credits suffix.
+            const uint32_t nowm = millis();
+            const bool raw_ok = id(${uid}_extra_credits).has_state() && !std::isnan(id(${uid}_extra_credits).state);
+            const float raw = raw_ok ? id(${uid}_extra_credits).state : -1.0f;
+            // uint32 subtraction is rollover-safe for elapsed times < 49.7 days.
+            const bool hold_fresh = id(${uid}_credits_last) >= 0.0f &&
+                                    (nowm - id(${uid}_credits_last_ms)) < (uint32_t) ${credits_hold_ms | default(600000)};
+
+            bool have_credits;
+            float credits = 0.0f;
+            if (raw_ok && raw > 0.0f) {
+              // a real, positive reading -> accept and remember it
+              id(${uid}_credits_last) = raw;
+              id(${uid}_credits_last_ms) = nowm;
+              have_credits = true; credits = raw;
+            } else if (hold_fresh) {
+              // transient 0 / unavailable within the hold window -> show last good
+              have_credits = true; credits = id(${uid}_credits_last);
+            } else if (raw_ok) {
+              // a real 0 that outlived the hold window -> commit it as truth
+              id(${uid}_credits_last) = 0.0f;
+              id(${uid}_credits_last_ms) = nowm;
+              have_credits = true; credits = 0.0f;
+            } else {
+              // unavailable past the hold window -> drop the credits suffix
+              have_credits = false;
+            }
+
             char buf[56];
-            if (id(${uid}_extra_credits).has_state() && !std::isnan(id(${uid}_extra_credits).state))
-              snprintf(buf, sizeof(buf), "${t_fmt_extra_credits | default("Extra Usage: %d%% - %.1f Credits")}", p, id(${uid}_extra_credits).state);
+            if (have_credits)
+              snprintf(buf, sizeof(buf), "${t_fmt_extra_credits | default("Extra Usage: %d%% - %.1f Credits")}", p, credits);
             else
               snprintf(buf, sizeof(buf), "${t_fmt_extra | default("Extra Usage: %d%%")}", p);
             return std::string(buf);
