@@ -106,7 +106,7 @@ ha_session_usage % ──┬──► usage_rate.yaml ──► burn rate 5m  (c
 ha_session_reset ──► session_reset_clock.yaml ──► reset wall-clock "HH:MM"
                          (ISO → minutes via tz)      + "reset in N min" (clawd_reset_reset_in_min)
 
-burn30 + reset_in ──► runway.yaml ──► verdict ("Nm to spare"/"Nm short"/"clear") + pace ratio
+burn30 + reset_in ──► runway.yaml ──► verdict ("No · Nm to spare"/"Yes · Nm early"/"No") + pace ratio
                                               │
                          pace ratio ─────────┴──► pace_frame.yaml ──► creature-tile border colour
                             (grid layouts only; green / orange / red, optional)
@@ -202,9 +202,9 @@ computes into one answer: **does the session reset before usage hits the limit
 T_reset = minutes until the session reset      (session_reset_clock.yaml "reset in")
 T_limit = (100 - usage) / burn * 60   [min]    (same calc as time_to_100.yaml)
 
-T_reset <= T_limit -> resets first      -> "<slack>m to spare"
-T_limit <  T_reset -> hits limit first  -> "<deficit>m short"
-burn <= 0          -> not climbing      -> "clear"
+T_reset <= T_limit -> resets first      -> "No · <slack>m to spare"
+T_limit <  T_reset -> hits limit first  -> "Yes · <deficit>m early"
+burn <= 0          -> not climbing      -> "No"
 inputs missing     ->                   -> "unknown" (keeps last good value)
 ```
 
@@ -212,7 +212,8 @@ inputs missing     ->                   -> "unknown" (keeps last good value)
 sensor (`name:` → Home Assistant / ESPHome dashboard) plus a numeric **pace
 ratio** `T_reset / T_limit` (`> 1` = burning fast enough to hit the limit that
 many times over before the reset). It needs no `engine.yaml` — pure ESPHome.
-`stats_panel.yaml` can draw the same verdict inline from its own ids, but the
+`stats_panel.yaml` can draw the same verdict inline (prefixed **"Hit limit? "**,
+e.g. `Hit limit? No · 34m to spare`) from its own ids, but the
 line is **off by default** — set `show_runway: "true"` on the panel to show it
 (the grid-portrait example does). The verdict is always computed regardless; this
 only toggles the on-display line. Add `runway_tile.yaml` only if you also want it

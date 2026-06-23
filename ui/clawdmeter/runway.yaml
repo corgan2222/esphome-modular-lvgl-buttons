@@ -9,9 +9,9 @@
 #   T_reset = minutes until the session/weekly reset   (from a reset-clock sensor)
 #   T_limit = (100 - usage) / burn * 60  [min]          (same calc as time_to_100)
 #
-#   T_reset <= T_limit -> resets first  -> SAFE: "<slack>m to spare"
-#   T_limit <  T_reset -> hits limit first -> OVER: "<deficit>m short"
-#   burn <= 0          -> not climbing  -> "clear" (never reaches the limit)
+#   T_reset <= T_limit -> resets first  -> SAFE: "No · <slack>m to spare"
+#   T_limit <  T_reset -> hits limit first -> OVER: "Yes · <deficit>m early"
+#   burn <= 0          -> not climbing  -> "No" (never reaches the limit)
 #
 # It also exposes a numeric PACE ratio = T_reset / T_limit: > 1 means you are
 # burning fast enough to hit the limit that many times over before the reset
@@ -89,14 +89,14 @@ text_sensor:
       }
       const float rate = id(${rate_id}).state;
       // not climbing -> the limit is never reached, the reset always wins
-      if (rate <= 0.0f) return std::string("${t_runway_clear | default("clear")}");
+      if (rate <= 0.0f) return std::string("${t_runway_clear | default("No")}");
       float t_reset = id(${resetin_id}).state;
       if (t_reset < 0.0f) t_reset = 0.0f;
       float t_limit = (100.0f - id(${uid}_runway_usage).state) / rate * 60.0f;
       if (t_limit < 0.0f) t_limit = 0.0f;
       char buf[32];
       if (t_reset <= t_limit)
-        snprintf(buf, sizeof(buf), "${t_runway_spare | default("%dm to spare")}", (int) (t_limit - t_reset));
+        snprintf(buf, sizeof(buf), "${t_runway_spare | default("No · %dm to spare")}", (int) (t_limit - t_reset));
       else
-        snprintf(buf, sizeof(buf), "${t_runway_short | default("%dm short")}", (int) (t_reset - t_limit));
+        snprintf(buf, sizeof(buf), "${t_runway_short | default("Yes · %dm early")}", (int) (t_reset - t_limit));
       return std::string(buf);

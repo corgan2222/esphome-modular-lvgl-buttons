@@ -28,7 +28,7 @@
 # var from the device still wins over it. NOTE: these are global substitution
 # names, so include this tile at most once per device.
 substitutions:
-  _rw_tile_i18n:  ${t_tile_runway | default("Runway")}
+  _rw_tile_i18n:  ${t_tile_runway | default("Hit limit?")}
   _rw_tile_label: ${text | default(_rw_tile_i18n)}
 
 interval:
