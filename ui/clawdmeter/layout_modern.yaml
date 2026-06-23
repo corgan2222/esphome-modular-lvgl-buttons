@@ -1,0 +1,162 @@
+# layout_modern.yaml — page-1 "Modern Dark" look (mockup: clawdmeter_variante_a).
+# DESIGN-SPECIFIC to 480x800 portrait (live board, rotation 0) — uses the
+# mockup's absolute geometry deliberately (spec §3.6 pixel-match). Not reusable
+# across resolutions. Reads backend compute IDs + its own HA sensors.
+# Selected at compile time by the device config's `design: modern`.
+#
+# CREATURE PLACEMENT (deviation from plan Task 1.2, user decision 2026-06-24):
+#   The plan re-included creature.yaml, but that file positions itself ONLY via
+#   grid_cell_* (needs a grid parent), while this page is absolutely positioned.
+#   The two are mutually exclusive on one page. Chosen fix: this file OWNS the
+#   creature root (`clawd_c_creature_root`) as a CENTER child INSIDE the GIF
+#   frame and replicates the two things creature.yaml provided — the on_boot
+#   clawd_init() and the HA session-% sensor that feeds clawd_set_usage().
+#   creature.yaml is NOT re-included; no original repo file is modified, and the
+#   animation sits cleanly inside the bordered frame.
+#
+#   Absolute positioning is achieved with a full-page wrapper obj (clawd_m_root)
+#   that fills grid cell (0,0) spanning the whole 4x4 base page and carries no
+#   inner layout — so its children use page-relative x/y and TOP_RIGHT aligns.
+
+# --- own HA-derived percentage sensors (mirror stats_panel's pattern) ---
+sensor:
+  # Feeds the creature animation engine (was provided by creature.yaml).
+  - platform: homeassistant
+    id: clawd_c_anim_session_pct
+    entity_id: ${ha_session_usage}
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_usage(x, 0, 0.0f, 0);'
+  # Drive the modern hero/cards (consumed by clawd_m_refresh in Task 1.3).
+  - platform: homeassistant
+    id: clawd_m_session_pct
+    entity_id: ${ha_session_usage}
+    internal: true
+  - platform: homeassistant
+    id: clawd_m_weekly_pct
+    entity_id: ${ha_week_usage}
+    internal: true
+  - platform: homeassistant
+    id: clawd_m_extra_pct
+    entity_id: ${ha_extra_usage}
+    internal: true
+  - platform: homeassistant
+    id: clawd_m_extra_credits
+    entity_id: ${ha_extra_credits}
+    internal: true
+
+# --- boot the creature canvas (was provided by creature.yaml) ---
+esphome:
+  on_boot:
+    - priority: -100   # after LVGL + display are up
+      then:
+        - lambda: |-
+            clawd_init(id(clawd_c_creature_root), ${screen_width}, ${screen_height});
+
+lvgl:
+  pages:
+    - id: !extend main_page
+      bg_color: black
+      bg_opa: COVER
+      pad_all: 0
+      widgets:
+        # Full-page wrapper: fills the base 4x4 grid (cell 0,0 spanning all),
+        # carries NO inner layout, so everything inside positions absolutely
+        # relative to the page (x/y + TOP_RIGHT against the page edges).
+        - obj:
+            id: clawd_m_root
+            grid_cell_row_pos: 0
+            grid_cell_column_pos: 0
+            grid_cell_row_span: 4
+            grid_cell_column_span: 4
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
+            bg_color: black
+            bg_opa: COVER
+            border_width: 0
+            pad_all: 0
+            radius: 0
+            widgets:
+              # ===== GIF frame (top third) — holds the creature animation =====
+              - obj:
+                  id: clawd_m_gif_frame
+                  x: 60
+                  y: 28
+                  width: 360
+                  height: 250
+                  radius: 14
+                  border_width: 2
+                  border_color: slate_blue_gray
+                  bg_color: black
+                  bg_opa: COVER
+                  pad_all: 0
+                  widgets:
+                    # Engine draws the creature into this box (clawd_init above).
+                    - obj:
+                        id: clawd_c_creature_root
+                        align: CENTER
+                        width: 100%
+                        height: 100%
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+              # ===== Session hero =====
+              - label:
+                  text: ${t_modern_session | default("Session")}
+                  x: 24
+                  y: 318
+                  text_font: nunito_18
+                  text_color: white
+              - label:
+                  id: clawd_m_session_reset
+                  text: ""
+                  align: TOP_RIGHT
+                  x: -24
+                  y: 320
+                  text_font: nunito_14
+                  text_color: misty_blue
+              - label:
+                  id: clawd_m_session_num
+                  text: "0"
+                  x: 22
+                  y: 338
+                  text_font: nunito_72
+                  text_color: ep_orange
+              - label:
+                  text: "%"
+                  x: 120
+                  y: 374
+                  text_font: nunito_36
+                  text_color: ep_orange
+              - label:
+                  id: clawd_m_session_min
+                  text: "0"
+                  align: TOP_RIGHT
+                  x: -66
+                  y: 350
+                  text_font: nunito_48
+                  text_color: white
+              - label:
+                  text: ${t_modern_min | default("min")}
+                  align: TOP_RIGHT
+                  x: -24
+                  y: 372
+                  text_font: nunito_20
+                  text_color: misty_blue
+              - bar:
+                  id: clawd_m_session_bar
+                  x: 24
+                  y: 412
+                  width: 432
+                  height: 18
+                  min_value: 0
+                  max_value: 100
+                  value: 0
+                  radius: 9
+                  bg_color: gray900
+                  bg_opa: COVER
+                  indicator:
+                    bg_color: ep_orange
+                    bg_opa: COVER
+                    radius: 9
