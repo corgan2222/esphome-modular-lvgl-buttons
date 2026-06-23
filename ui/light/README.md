@@ -2,7 +2,7 @@
 
 # ui/light
 
-Full RGB / CCT / brightness tile for a light entity. Short-click toggles on/off. Long-press opens a detail page with brightness slider, hue arc, saturation slider, and color temperature arc.
+Full RGB / CCT / brightness tile for a light entity — icon, label, and a brightness slider. Short-click toggles on/off. Long-press opens a color-picker popup with an HSV (hue/saturation) ring and a Kelvin (color-temperature) ring.
 
 Capabilities (RGB, CCT, brightness-only) are **detected at runtime** — never declared by the user.
 
@@ -12,7 +12,7 @@ Capabilities (RGB, CCT, brightness-only) are **detected at runtime** — never d
 |---|---|
 | `local.yaml` | ESPHome light component (defined in the same device YAML) |
 | `remote.yaml` | Home Assistant light entity |
-| `detail.yaml` | Shared detail page — included automatically, do not include directly |
+| `../../common/color_picker.yaml` | Shared HSV/Kelvin color-picker popup — pulled in automatically via `packages:`, do not include directly |
 
 ## Variables
 
@@ -27,6 +27,7 @@ Capabilities (RGB, CCT, brightness-only) are **detected at runtime** — never d
 | `row_span` | — | Number of rows to span (default: `1`) |
 | `column_span` | — | Number of columns to span (default: `1`) |
 | `page_id` | — | Parent page ID to place the tile on (default: `main_page`) |
+| `color_picker_mode` | — | Color-picker popup mode: `rgb` / `kelvin` / `both` (default: `both`) |
 
 ## Usage
 
@@ -56,7 +57,7 @@ ceiling_btn: !include
 
 ## Supported light types
 
-| ESPHome platform | Detected capability | Detail page UI |
+| ESPHome platform | Detected capability | Controls |
 |---|---|---|
 | `binary` | none | toggle only |
 | `monochromatic` | brightness | brightness slider |
