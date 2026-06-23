@@ -51,6 +51,11 @@ substitutions:
   screen_width: '800'
   screen_height: '480'
 
+  # Synthetic data feed for SDL screenshots: "0" = off (HA-driven; tiles render
+  # 0% / "warming up" on the host), "1" = on (an on-device rising feed so every
+  # tile shows real numbers). Enable per-run with `-s sim_feed 1` — see run_data.sh.
+  sim_feed: "0"
+
 esphome:
   name: clawdmeter-sdl
   friendly_name: Clawdmeter SDL
@@ -72,6 +77,44 @@ script:
   - id: time_update
     then:
       - lambda: '// no-op'
+
+# Synthetic data feed (opt-in via sim_feed=="1"). Lets the SDL screenshot show
+# real numbers instead of the HA-unavailable 0% / "warming up" state. No-op when
+# sim_feed=="0", so the default layout-only behaviour of run.sh is untouched.
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          if (std::string("${sim_feed}") != "1") return;
+          // Monotonic-rising session % so the engine leaves "warming up" and the
+          // burn-rate / time-to-100 tiles compute a real slope. 0.04%/s = 2.4%/min
+          // (above the engine's HEAVY threshold); the 20s cadence clears the
+          // >15s sample burst-ignore; a ~120s window clears warming-up.
+          float t = millis() / 1000.0f;
+          float sess = 28.0f + t * 0.04f;
+          if (sess > 95.0f) sess = 95.0f;
+          id(clawd_c_anim_session_pct).publish_state(sess);
+          id(clawd_burn5_src).publish_state(sess);
+          id(clawd_burn30_src).publish_state(sess);
+          id(clawd_ttl_ttl_usage).publish_state(sess);
+          id(clawd_stats_session_pct).publish_state(sess);
+          id(clawd_stats_week_pct).publish_state(46.0f);
+          id(clawd_stats_extra_pct).publish_state(12.0f);
+          id(clawd_stats_extra_credits).publish_state(3.0f);
+          // ISO-8601 UTC reset timestamps (now+3h session, now+4d weekly) so the
+          // reset-clock tiles parse and render HH:MM. Host wall-clock is valid.
+          time_t nowt = ::time(nullptr);
+          if (nowt > 1000000) {
+            char buf[40]; struct tm tmv;
+            time_t r1 = nowt + 3 * 3600;  gmtime_r(&r1, &tmv);
+            snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d+00:00",
+                     tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+            id(clawd_reset_reset_src).publish_state(std::string(buf));
+            time_t r2 = nowt + 4 * 86400; gmtime_r(&r2, &tmv);
+            snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d+00:00",
+                     tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+            id(clawd_wreset_reset_src).publish_state(std::string(buf));
+          }
 
 packages:
   sensors:  !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml

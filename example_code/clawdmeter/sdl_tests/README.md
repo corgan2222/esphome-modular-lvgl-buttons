@@ -113,7 +113,7 @@ Plus, every harness adds:
   `clawd_stats_h: 50%`, so the labels don't wrap and the stats panel isn't
   cramped under the creature. Keep it in sync with the sunton device YAML.
 * **grid** / **grid_portrait** mirror the
-  `guition-esp32-p4-jc4880p443-clawdmeter-grid*.yaml` device configs: the engine
+  `grid/guition-esp32-p4-jc4880p443*.yaml` device configs: the engine
   + creature + the backend rate/clock/anim packages + the on-display stats panel,
   each placing itself into a cell of a 4x4 page grid.
 
