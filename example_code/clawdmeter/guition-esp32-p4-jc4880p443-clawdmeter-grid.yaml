@@ -161,6 +161,21 @@ packages:
       name: ${t_name_weekly_reset_time | default("Weekly Reset Time")}
       reset_in_name: ${t_name_weekly_reset_in | default("Weekly Reset In")}
 
+  # Runway — COMPUTED on the ESP: compares "time until session reset" against
+  # "time until the limit is hit at the current 30m burn rate" and emits a verdict
+  # ("Nm to spare" / "Nm short" / "clear") + a pace ratio. Always computed and
+  # exposed as device entities. The on-display line is OFF here by default — set
+  # `show_runway: "true"` on clawd_stats below to draw it (see grid-portrait).
+  clawd_rw: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/runway.yaml
+    vars:
+      uid: clawd_rw
+      rate_id: clawd_burn30_rate
+      resetin_id: clawd_reset_reset_in_min
+      source_entity: $ha_session_usage
+      name: ${t_name_runway | default("Session Runway")}
+      ratio_name: ${t_name_runway_ratio | default("Session Runway Pace")}
+
   # Stats panel — the on-display right half: session / weekly / extra-usage /
   # time-till-100% bars + a 5m/30m burn line. Pulls the four percentages and the
   # credits from HA, and reads every derived time value from the backend

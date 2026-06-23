@@ -1,12 +1,47 @@
 # esphome-modular-lvgl-buttons
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![ESPHome](https://img.shields.io/badge/ESPHome-2026.5.0+-blue)](https://esphome.io)
+[![ESPHome](https://img.shields.io/badge/ESPHome-2026.6.0+-blue)](https://esphome.io)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41BDF5)](https://www.home-assistant.io/)
 
 A modular component library for building touchscreen smart home control panels using [ESPHome](https://esphome.io/) + [LVGL](https://lvgl.io/) on cheap ESP32 displays.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design rationale.
+
+---
+
+## ⭐ What's new in this fork
+
+This is a fork. Lineage and what each layer adds:
+
+| Layer | Repo | Adds |
+|---|---|---|
+| **Base** | [agillis/esphome-modular-lvgl-buttons](https://github.com/agillis/esphome-modular-lvgl-buttons) | The modular tile library: light, switch, sensor, binary_sensor, text_sensor, button, sensor_button, climate + the flip-clock / weather / solar / tides feature modules. |
+| **+ Derek's features** | [derekmcauley7/esphome-modular-lvgl-buttons](https://github.com/derekmcauley7/esphome-modular-lvgl-buttons) | **`media_player`** entity (remote-only): transport controls, volume, progress bar, full-screen detail page, optional PIN lock. |
+| **+ This fork** | you are here | **🐾 [Clawdmeter](#-clawdmeter)** — animated Claude-usage display · **🌍 4-language i18n** (en/de/fr/es) for Clawdmeter · **🛫 Runway** burn-vs-reset projection. Bumped to ESPHome **2026.6.0**. |
+
+So everything in the base library **and** Derek's `media_player` is included here —
+this fork only **adds** the Clawdmeter stack on top.
+
+### 🐾 Clawdmeter
+
+An animated pixel-art creature that shows your **Claude token usage**: the
+creature's mood tracks how fast you're burning tokens, and a stats panel below
+draws session / weekly / extra usage bars, burn rate, time-to-100 %, reset
+clocks and a "Runway" verdict.
+
+> **Data source required.** The Clawdmeter reads usage from **Home Assistant
+> sensors** — it does not scrape Claude itself. You need a producer for those
+> sensors: either the
+> [trickv/hass-claude-usage](https://github.com/trickv/hass-claude-usage)
+> integration **or your own implementation** (any HA template/REST/MQTT sensor
+> exposing the same usage % + reset-timestamp values).
+
+- 📖 **[ui/clawdmeter/README.md](ui/clawdmeter/README.md)** — data flow (where
+  the entities come from, what the device computes, when which animation is
+  shown) + full file/variable reference.
+- 🚀 Ready-to-flash examples in
+  [`example_code/clawdmeter/`](example_code/clawdmeter/).
 
 ---
 
@@ -28,7 +63,7 @@ Your device YAML composes a panel by including one hardware file, the shared inf
 
 ### 1. Prerequisites
 
-ESPHome 2026.5.0 or later. For SVG image support (required by solar/tides modules):
+ESPHome 2026.6.0 or later. For SVG image support (required by solar/tides modules):
 
 ```bash
 pip install cairosvg
@@ -270,6 +305,7 @@ Additional UI modules under `ui/` for specific integrations:
 
 | Module | Description |
 |---|---|
+| `ui/clawdmeter/` | 🐾 **Animated Claude token-usage display** (this fork). Pixel-art creature whose mood tracks your burn rate + a stats panel with usage bars, time-to-100 %, reset clocks and Runway. 4 languages (en/de/fr/es). Needs an HA usage source — see [ui/clawdmeter/README.md](ui/clawdmeter/README.md). |
 | `ui/clock/flip_clock.yaml` | Gluqlo-style flip clock widget |
 | `ui/weather/today.yaml` | Current weather tile from HA weather entity |
 | `ui/weather/forecast.yaml` | 4-day forecast widget via `weather.get_forecasts` |

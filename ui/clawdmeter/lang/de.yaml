@@ -38,6 +38,8 @@ substitutions:
   t_name_usage_group:        'Nutzungsgruppe'
   t_name_usage_rate:         'Nutzungsrate'
   t_name_usage_diag:         'Nutzungs-Diagnose'
+  t_name_runway:             'Session Runway'
+  t_name_runway_ratio:       'Session Runway Tempo'
 
   # ---- stats panel: on-display format strings ----
   t_fmt_session_reset: 'Session %d%% - Reset in %d m - %s'
@@ -48,6 +50,7 @@ substitutions:
   t_fmt_ttl_clk:       'Zeit bis 100%% - %d Min - %s'
   t_fmt_ttl:           'Zeit bis 100%% - %s'
   t_fmt_burn:          'Verbrauch  5m %s  \xC2\xB7  30m %s %%/h'
+  t_fmt_runway:        'Runway - %s'
 
   # ---- stats panel: static placeholder labels (shown until first repaint) ----
   t_ph_session: 'Session —'
@@ -55,10 +58,17 @@ substitutions:
   t_ph_extra:   'Extra-Nutzung —'
   t_ph_ttl:     'Zeit bis 100% —'
   t_ph_burn:    'Verbrauch —'
+  t_ph_runway:  'Runway —'
 
   # ---- time_to_100 text sensor ----
   t_ttl_mins:    'in %d Min.'
   t_ttl_unknown: 'unbekannt'
+
+  # ---- runway verdict (reset vs limit) — used by runway.yaml + stats_panel ----
+  t_runway_spare:   '%d Min Puffer'
+  t_runway_short:   '%d Min zu knapp'
+  t_runway_clear:   'frei'
+  t_runway_unknown: 'unbekannt'
 
   # ---- remote.yaml: single-page (non-grid) stats labels ----
   t_rmt_session:       'Aktuell  %d%%'
@@ -70,3 +80,6 @@ substitutions:
 
   # ---- time_to_100_tile.yaml: optional display tile label ----
   t_tile_ttl: 'Bis 100%'
+
+  # ---- runway_tile.yaml: optional display tile label ----
+  t_tile_runway: 'Runway'

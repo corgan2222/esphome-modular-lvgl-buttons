@@ -18,6 +18,107 @@ the daemon: it reads usage from **Home Assistant sensors** via the repo's
 whatever scrapes your usage (HA template sensor, REST sensor, the
 [ccusage](https://github.com/ryoppippi/ccusage) exporter, etc.).
 
+## Examples
+
+Ready-to-flash device configs live in
+[`example_code/clawdmeter/`](../../example_code/clawdmeter/). Copy the closest
+one, change the entity IDs in the `substitutions:` block, pick a language pack,
+and flash:
+
+| Example | Layout |
+|---|---|
+| [`…-jc4880p443-clawdmeter-grid.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml) | Modular grid tiles, **landscape** (creature left, stats right) |
+| [`…-jc4880p443-clawdmeter-grid-portrait.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid-portrait.yaml) | Modular grid tiles, **portrait** (creature top, stats below) |
+| [`…-jc4880p443-clawdmeter.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter.yaml) | All-in-one full-screen `remote.yaml` |
+
+See [Usage](#usage) for the minimal include, and [Data flow](#data-flow) for how
+the pieces fit together.
+
+## Data flow
+
+Where the data comes from, what the device computes, and when which animation is
+shown. Two ways to assemble the Clawdmeter:
+
+- **All-in-one** — include `remote.yaml`; it draws the whole page and reads the
+  five entities in the [data contract](#home-assistant-data-contract) below.
+- **Modular grid** — include the individual tile packages
+  (`creature.yaml`, `usage_rate.yaml`, `time_to_100.yaml`,
+  `session_reset_clock.yaml`, `runway.yaml`, `stats_panel.yaml`, …) and place
+  each in its own grid cell. See
+  `example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml`.
+
+### 1. Where the entities come from
+
+The Clawdmeter does **not** scrape Claude itself — it reads usage from **Home
+Assistant sensors**. You need a producer for those sensors first, one of:
+
+- **[trickv/hass-claude-usage](https://github.com/trickv/hass-claude-usage)** —
+  an HA integration that polls Claude usage and exposes it as a "Claude Usage"
+  device, **or**
+- **your own implementation** — any HA template / REST / MQTT sensor that
+  produces the same usage % + reset-timestamp values.
+
+The **modular grid** build points at six raw entities in one block at the top of
+the device YAML — the *only* thing you edit (every `ui/clawdmeter/*` file
+receives them via `vars:`):
+
+| Entity (grid build) | Type | Meaning | Feeds |
+|---|---|---|---|
+| `ha_session_usage` | 0–100 % | session limit used | **animation** + burn rate + time-to-100 + Runway + bar |
+| `ha_week_usage` | 0–100 % | weekly limit used | weekly bar |
+| `ha_extra_usage` | 0–100 % | extra usage (may be off in HA) | extra bar |
+| `ha_extra_credits` | number | extra usage in credits | extra line |
+| `ha_session_reset` | ISO-8601 ts | instant the session resets | reset clock + "reset in" + Runway |
+| `ha_weekly_reset` | ISO-8601 ts | instant the weekly limit resets | weekly reset clock |
+
+(The all-in-one `remote.yaml` reads a thinner five-entity set — see the
+[data contract](#home-assistant-data-contract).)
+
+### 2. What's computed on the device
+
+The raw HA inputs are deliberately thin (percentages + two timestamps).
+**Everything else is computed on the ESP**, so the panel keeps working between HA
+updates and needs no extra HA template sensors. Each calculation is its own
+modular tile package:
+
+```
+HA raw inputs                          on-device packages (computed)
+─────────────                          ─────────────────────────────
+ha_session_usage % ──┬──► usage_rate.yaml ──► burn rate 5m  (clawd_burn5_rate)
+                     ├──► usage_rate.yaml ──► burn rate 30m (clawd_burn30_rate)
+                     │                              │
+                     ├──► time_to_100.yaml ◄────────┘  ──► "time to 100%" + ETA clock
+                     │       (100 - usage) / burn * 60
+                     │
+                     └──► creature.yaml  ──► animation group (see §3)
+
+ha_session_reset ──► session_reset_clock.yaml ──► reset wall-clock "HH:MM"
+                         (ISO → minutes via tz)      + "reset in N min" (clawd_reset_reset_in_min)
+
+burn30 + reset_in ──► runway.yaml ──► verdict ("Nm to spare"/"Nm short"/"clear") + pace ratio
+```
+
+- **`usage_rate.yaml`** — ring buffer of `session_pct` samples → **rate in
+  %/min** over a trailing window. Included twice: a fast **5 min** window and a
+  smooth **30 min** window (the latter feeds the projections).
+- **`time_to_100.yaml`** — `T_limit = (100 − usage) / burn30 × 60` min, plus an
+  ETA wall-clock. `burn ≤ 0` → "not climbing".
+- **`session_reset_clock.yaml`** — ISO reset instant → local wall-clock + "reset
+  in N min" countdown (device timezone). Included twice (session + weekly).
+- **`runway.yaml`** — folds the two predictions into one verdict (see the
+  [Runway](#runway-runwayyaml--runway_tileyaml) section).
+- **`stats_panel.yaml`** — reads the four percentages + credits from HA and every
+  derived value above **by id**, and draws the bars / burn line. The inline Runway
+  line is off by default (`show_runway: "true"` to enable).
+
+### 3. When which animation is shown
+
+The creature's mood tracks **how fast you're burning tokens**, not the absolute
+percentage: the engine computes the burn rate from `session_pct` and maps it to
+one of four animation groups (faster burn → livelier group), with a warm-up
+guard right after boot/reset. The full group table is in
+[Usage → animation mapping](#usage--animation-mapping) below.
+
 ## Files
 
 | File | Purpose |
@@ -76,6 +177,63 @@ reset and clears the window.
 The window needs at least 2 samples spanning ≥ 4 minutes before it leaves idle,
 so the creature stays calm right after boot or a reset.
 
+## Runway (`runway.yaml` + `runway_tile.yaml`)
+
+A bottom-line verdict that folds the two predictions the Clawdmeter already
+computes into one answer: **does the session reset before usage hits the limit
+(safe), or does it run into the limit first (over)?**
+
+```
+T_reset = minutes until the session reset      (session_reset_clock.yaml "reset in")
+T_limit = (100 - usage) / burn * 60   [min]    (same calc as time_to_100.yaml)
+
+T_reset <= T_limit -> resets first      -> "<slack>m to spare"
+T_limit <  T_reset -> hits limit first  -> "<deficit>m short"
+burn <= 0          -> not climbing      -> "clear"
+inputs missing     ->                   -> "unknown" (keeps last good value)
+```
+
+`runway.yaml` is a backend package (no LVGL): it exposes the verdict as a text
+sensor (`name:` → Home Assistant / ESPHome dashboard) plus a numeric **pace
+ratio** `T_reset / T_limit` (`> 1` = burning fast enough to hit the limit that
+many times over before the reset). It needs no `engine.yaml` — pure ESPHome.
+`stats_panel.yaml` can draw the same verdict inline from its own ids, but the
+line is **off by default** — set `show_runway: "true"` on the panel to show it
+(the grid-portrait example does). The verdict is always computed regardless; this
+only toggles the on-display line. Add `runway_tile.yaml` only if you also want it
+as its own LVGL grid cell.
+
+Wire it to the SAME 30m burn-rate and "reset in" sensors the rest of the
+Clawdmeter uses:
+
+```yaml
+clawd_rw: !include
+  file: esphome-modular-lvgl-buttons/ui/clawdmeter/runway.yaml
+  vars:
+    uid: clawd_rw
+    rate_id: clawd_burn30_rate            # from usage_rate.yaml (window_min: 30)
+    resetin_id: clawd_reset_reset_in_min  # from session_reset_clock.yaml
+    source_entity: $ha_session_usage
+```
+
+| Var | Required | Meaning |
+|---|---|---|
+| `uid` | yes | namespace prefix for the exposed ids (`${uid}_runway`, `${uid}_runway_ratio`) |
+| `rate_id` | yes | id of the 30m burn-rate sensor |
+| `resetin_id` | yes | id of the "reset in" minutes sensor |
+| `source_entity` | no | HA usage % sensor (default `sensor.SET_ME_session_usage`) |
+| `name` / `ratio_name` | no | entity names for the verdict / pace sensors |
+| `update_sec` | no | recompute cadence (default 30) |
+
+Localized via the `t_runway_*`, `t_fmt_runway`, `t_ph_runway`, `t_name_runway*`
+and `t_tile_runway` keys (see `lang/en.yaml`).
+
+> **Session only.** A weekly Runway would need a multi-hour weekly burn-rate
+> sensor; the current `usage_rate.yaml` ring (≈40 min) can't supply one yet.
+
+> **Caveat:** the burn rate is a short trailing window (bursty), so Runway is an
+> "if you keep this exact pace up" projection, not a guarantee.
+
 ## Engine C API (`clawdmeter_engine.h`)
 
 | Function | Purpose |
@@ -126,3 +284,18 @@ g++ -std=c++17 ui/clawdmeter/tests/test_usage_rate.cpp -o /tmp/urt && /tmp/urt
 # animation-data parity
 node ui/clawdmeter/tests/test_convert_counts.js
 ```
+
+## Credits & license
+
+The Clawdmeter is part of the
+[**esphome-modular-lvgl-buttons**](https://github.com/agillis/esphome-modular-lvgl-buttons)
+library and ships under its **MIT license** (see [LICENSE](../../LICENSE)).
+
+| Project | Role |
+|---|---|
+| [HermannBjorgvin/Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter) | Original Clawdmeter — creature concept and pixel-art animations this port is based on. |
+| [agillis/esphome-modular-lvgl-buttons](https://github.com/agillis/esphome-modular-lvgl-buttons) | Upstream modular LVGL button library this component lives in. |
+| [trickv/hass-claude-usage](https://github.com/trickv/hass-claude-usage) | Reference Home Assistant integration that produces the Claude usage sensors. |
+
+© the respective authors. Pixel-art animation data is vendored from the original
+Clawdmeter project under its own terms.
