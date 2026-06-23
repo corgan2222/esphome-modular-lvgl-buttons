@@ -1,0 +1,59 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame_debug.yaml
+# DEBUG-ONLY companion for pace_frame.yaml. Exposes an HA `select` that FORCES the
+# pace-frame colour band so you can watch green / orange / red (and the orange/red
+# breathing pulse) on the bench without waiting for real runway data to climb.
+#
+# Wiring (in the device YAML, alongside the clawd_pace_frame include):
+#   1. include THIS file with the SAME uid as the pace_frame include:
+#        clawd_pace_frame_debug: !include
+#          file: esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame_debug.yaml
+#          vars: { uid: clawd_pf }
+#   2. point pace_frame's optional `debug_id` var at this global:
+#        debug_id: "clawd_pf_pace_debug"
+#
+# The select writes ${uid}_pace_debug: 0 = auto (normal runway logic) | 1 = green |
+# 2 = orange | 3 = red. While non-zero, pace_frame forces that band and bypasses the
+# no-value + show_from gates. Remove BOTH the include and the `debug_id` var to
+# fully revert — pace_frame then compiles with debug_id "" -> dbg 0 -> no effect.
+#
+# Note: the live "Pace Frame" visibility switch still applies — it must be ON for
+# the forced frame to show, and green stays solid (only orange/red breathe).
+#
+# vars:
+#   uid          required  MUST match the pace_frame include's uid
+#   debug_name   optional  name: for the HA select (default "Pace Frame Debug")
+#   debug_icon   optional  mdi icon for the select (default "mdi:palette"); sent to
+#                          HA, not rendered on-device, so any mdi name is valid
+
+globals:
+  # Forced-band selector value: 0 auto / 1 green / 2 orange / 3 red. Not restored —
+  # always boots to auto so the device never gets stuck on a forced band.
+  - id: ${uid}_pace_debug
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+select:
+  # HA-exposed forced-band picker. optimistic so the option round-trips without a
+  # backing entity; set_action maps the chosen label to the int global, which
+  # pace_frame's lambda reads on its next poll tick.
+  - platform: template
+    id: ${uid}_pace_debug_sel
+    name: ${debug_name | default("Pace Frame Debug")}
+    icon: ${debug_icon | default("mdi:palette")}
+    optimistic: true
+    restore_value: false
+    options:
+      - "auto"
+      - "green"
+      - "orange"
+      - "red"
+    initial_option: "auto"
+    set_action:
+      - globals.set:
+          id: ${uid}_pace_debug
+          value: !lambda |-
+            if (x == "green")  return 1;
+            if (x == "orange") return 2;
+            if (x == "red")    return 3;
+            return 0;

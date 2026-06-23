@@ -18,7 +18,7 @@ This is a fork. Lineage and what each layer adds:
 |---|---|---|
 | **Base** | [agillis/esphome-modular-lvgl-buttons](https://github.com/agillis/esphome-modular-lvgl-buttons) | The modular tile library: light, switch, sensor, binary_sensor, text_sensor, button, sensor_button, climate + the flip-clock / weather / solar / tides feature modules. |
 | **+ Derek's features** | [derekmcauley7/esphome-modular-lvgl-buttons](https://github.com/derekmcauley7/esphome-modular-lvgl-buttons) | **`media_player`** entity (remote-only): transport controls, volume, progress bar, full-screen detail page, optional PIN lock. |
-| **+ This fork** | you are here | **🐾 [Clawdmeter](#-clawdmeter)** — animated Claude-usage display · **🌍 4-language i18n** (en/de/fr/es) for Clawdmeter · **🛫 Runway** burn-vs-reset projection. Bumped to ESPHome **2026.6.0**. |
+| **+ This fork** | you are here | **🐾 [Clawdmeter](#-clawdmeter)** — animated Claude-usage display · **🌍 4-language i18n** (en/de/fr/es) for Clawdmeter · **🛫 Runway** burn-vs-reset projection · **🖼 Pace frame** colour-coded breathing runway border (grid layouts). Bumped to ESPHome **2026.6.0**. |
 
 So everything in the base library **and** Derek's `media_player` is included here —
 this fork only **adds** the Clawdmeter stack on top.
@@ -28,7 +28,9 @@ this fork only **adds** the Clawdmeter stack on top.
 An animated pixel-art creature that shows your **Claude token usage**: the
 creature's mood tracks how fast you're burning tokens, and a stats panel below
 draws session / weekly / extra usage bars, burn rate, time-to-100 %, reset
-clocks and a "Runway" verdict.
+clocks and a "Runway" verdict. On the modular grid layouts the creature tile can
+also wear a colour-coded, breathing **pace frame** that turns the Runway pace
+into a green → orange → red status border.
 
 > **Data source required.** The Clawdmeter reads usage from **Home Assistant
 > sensors** — it does not scrape Claude itself. You need a producer for those
@@ -305,7 +307,7 @@ Additional UI modules under `ui/` for specific integrations:
 
 | Module | Description |
 |---|---|
-| `ui/clawdmeter/` | 🐾 **Animated Claude token-usage display** (this fork). Pixel-art creature whose mood tracks your burn rate + a stats panel with usage bars, time-to-100 %, reset clocks and Runway. 4 languages (en/de/fr/es). Needs an HA usage source — see [ui/clawdmeter/README.md](ui/clawdmeter/README.md). |
+| `ui/clawdmeter/` | 🐾 **Animated Claude token-usage display** (this fork). Pixel-art creature whose mood tracks your burn rate + a stats panel with usage bars, time-to-100 %, reset clocks, Runway and an optional colour-coded pace frame. 4 languages (en/de/fr/es). Needs an HA usage source — see [ui/clawdmeter/README.md](ui/clawdmeter/README.md). |
 | `ui/clock/flip_clock.yaml` | Gluqlo-style flip clock widget |
 | `ui/weather/today.yaml` | Current weather tile from HA weather entity |
 | `ui/weather/forecast.yaml` | 4-day forecast widget via `weather.get_forecasts` |

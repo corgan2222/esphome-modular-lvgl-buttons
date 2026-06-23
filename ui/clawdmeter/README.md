@@ -27,8 +27,8 @@ and flash:
 
 | Example | Layout |
 |---|---|
-| [`…-jc4880p443-clawdmeter-grid.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml) | Modular grid tiles, **landscape** (creature left, stats right) |
-| [`…-jc4880p443-clawdmeter-grid-portrait.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid-portrait.yaml) | Modular grid tiles, **portrait** (creature top, stats below) |
+| [`…-jc4880p443-clawdmeter-grid.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml) | Modular grid tiles, **landscape** (creature left, stats right) — incl. the [pace frame](#pace-frame-pace_frameyaml) |
+| [`…-jc4880p443-clawdmeter-grid-portrait.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid-portrait.yaml) | Modular grid tiles, **portrait** (creature top, stats below) — incl. the [pace frame](#pace-frame-pace_frameyaml) |
 | [`…-jc4880p443-clawdmeter.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter.yaml) | All-in-one full-screen `remote.yaml` |
 
 See [Usage](#usage) for the minimal include, and [Data flow](#data-flow) for how
@@ -96,6 +96,9 @@ ha_session_reset ──► session_reset_clock.yaml ──► reset wall-clock "
                          (ISO → minutes via tz)      + "reset in N min" (clawd_reset_reset_in_min)
 
 burn30 + reset_in ──► runway.yaml ──► verdict ("Nm to spare"/"Nm short"/"clear") + pace ratio
+                                              │
+                         pace ratio ─────────┴──► pace_frame.yaml ──► creature-tile border colour
+                            (grid layouts only; green / orange / red, optional)
 ```
 
 - **`usage_rate.yaml`** — ring buffer of `session_pct` samples → **rate in
@@ -233,6 +236,59 @@ and `t_tile_runway` keys (see `lang/en.yaml`).
 
 > **Caveat:** the burn rate is a short trailing window (bursty), so Runway is an
 > "if you keep this exact pace up" projection, not a guarantee.
+
+## Pace frame (`pace_frame.yaml`)
+
+An optional colour-coded **breathing border** around the creature tile, fed by
+the Runway **pace ratio** above. It turns the creature's own frame into an
+at-a-glance status light: the calmer the runway, the calmer the frame.
+
+```
+pace ratio (clawd_rw_runway_ratio) ──► pace_frame.yaml ──► creature-tile border
+   no value       -> no border
+   ratio <  0.90  -> green  (0x43A047)  head-room     — solid, never breathes
+   ratio <  1.00  -> orange (0xFFB300)  cutting close — breathes (slow)
+   ratio >= 1.00  -> red    (0xE53935)  at/over limit — breathes (fast)
+```
+
+It's **pure YAML** — no engine or C++ change. It only restyles an *existing*
+LVGL tile (the creature's outer tile, `${creature_uid}_creature_root`), so it
+needs both a `runway.yaml` include (for the ratio) and the modular `creature.yaml`
+tile (for the target). That's why it ships only on the two **modular grid**
+examples — [landscape](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml)
+and [portrait](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid-portrait.yaml).
+The all-in-one `remote.yaml` builds don't compute a pace ratio, so they can't use it.
+
+```yaml
+clawd_pace_frame: !include
+  file: esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame.yaml
+  vars:
+    uid: clawd_pf
+    ratio_id: clawd_rw_runway_ratio    # ${runway_uid}_runway_ratio from runway.yaml
+    target_id: clawd_c_creature_root   # ${creature_uid}_creature_root from creature.yaml
+    show_from: "orange"                # both examples ship this: hide the calm green frame
+```
+
+| Var | Required | Meaning |
+|---|---|---|
+| `uid` | yes | namespace prefix for this include's ids + switch |
+| `ratio_id` | yes | id of the pace-ratio sensor (`${runway_uid}_runway_ratio`) |
+| `target_id` | yes | id of the LVGL tile to frame (`${creature_uid}_creature_root`) |
+| `enabled` | no | `"false"` compiles the logic to a no-op (default `"true"`) |
+| `width` | no | border thickness in px (default `3`) |
+| `green_max` / `orange_max` | no | band thresholds (default `0.90` / `1.00`) |
+| `show_from` | no | lowest band that draws: `"green"` (default, all bands) / `"orange"` (warn from orange up) / `"red"` (only at/over the limit) |
+| `breathe_*` | no | pulse tuning: `breathe_ms_slow` (1400) / `breathe_ms_fast` (700) half-periods, `breathe_min_opa` (60) dim floor, `breathe_default` (`"true"`) |
+
+**The whole frame is runtime-toggleable.** An exposed switch — `name:`
+**"Pace Frame"** (`breathe_switch_name`), object id `${uid}_pace_breathe_sw` —
+is a *visibility master*, not just a pulse toggle: switch **off** hides the
+**entire** frame (no border at all); switch **on** shows it — orange/red
+breathing, green solid. Green never breathes either way. Toggle it live from
+Home Assistant without a reflash.
+
+> **Default-off elsewhere.** Configs that don't include `pace_frame.yaml` are
+> unaffected. Drop the include (or set `enabled: "false"`) to remove the frame.
 
 ## Engine C API (`clawdmeter_engine.h`)
 
