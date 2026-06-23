@@ -10,7 +10,7 @@ Remote-only media player tile with full-screen detail page. Tile shows now-playi
 |---|---|
 | `remote.yaml` | Home Assistant media_player entity |
 | `detail.yaml` | Full-screen playback UI — included automatically, do not include directly |
-| `pin_lock.yaml` | Optional PIN lock — gates access to the detail page (planned) |
+| `pin_lock.yaml` | Optional PIN lock — gates access to the detail page |
 
 ## Variables
 
@@ -67,7 +67,7 @@ $mdi_repeat         $mdi_repeat_once  $mdi_volume_high
 If using PIN lock, also add:
 
 ```
-$mdi_lock   $mdi_backspace
+$mdi_lock   $mdi_backspace   $mdi_close
 ```
 
 ## Detail page layout
@@ -78,7 +78,7 @@ $mdi_lock   $mdi_backspace
 - **Transport controls** — shuffle, previous, play/pause (large circular), next, repeat
 - **Volume** — icon + horizontal slider at bottom
 
-## PIN lock (planned)
+## PIN lock
 
 When `pin_code` is set (e.g. `pin_code: "1234"`), long-pressing the tile opens a PIN entry page instead of the detail page. The PIN page shows:
 

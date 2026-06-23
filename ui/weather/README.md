@@ -2,11 +2,9 @@
 
 This library provides weather display components for ESPHome LVGL panels with Home Assistant integration.
 
-![Weather Display Example](example_images/weather_ha.png)
-
 ## Components
 
-### weather_forecast_action.yaml
+### forecast.yaml
 
 Displays a 4-day weather forecast using direct Home Assistant action calls. No template sensor configuration required in Home Assistant!
 
@@ -33,7 +31,7 @@ packages:
       weather_entity: weather.home
 ```
 
-### weather_today.yaml
+### today.yaml
 
 Displays current weather conditions with temperature and optional summary text.
 
@@ -67,13 +65,13 @@ packages:
 
 These widget IDs are created and can be referenced in your layouts:
 
-### From weather_forecast_action.yaml
+### From forecast.yaml
 - `forecast_day_0` through `forecast_day_3` - Day labels
 - `forecast_temperature_hi_0` through `forecast_temperature_hi_3` - High temperature labels
 - `forecast_temperature_lo_0` through `forecast_temperature_lo_3` - Low temperature labels  
 - `forecast_condition_icon_0` through `forecast_condition_icon_3` - Condition icons
 
-### From weather_today.yaml
+### From today.yaml
 - `weather_temperature_today` - Current temperature label
 - `weather_humidity_today` - Current humidity label
 - `weather_condition_icon` - Current condition icon
@@ -84,14 +82,12 @@ These widget IDs are created and can be referenced in your layouts:
 ```
 ui/weather/
 ├── README.md                      # This file
-├── weather_forecast_action.yaml   # 4-day forecast component
-├── weather_today.yaml             # Current weather component
-├── assets/
-│   └── images/                    # SVG weather icons
-└── example_images/
-    └── weather_ha.png             # Screenshot example
+├── forecast.yaml                  # 4-day forecast component
+├── today.yaml                     # Current weather component
+└── assets/
+    └── images/                    # SVG weather icons
 ```
 
 ## Complete Example
 
-See the main project's [SDL-weather-forecast.yaml](../example_code/advanced/SDL-weather-forecast.yaml) for a complete working example that combines both weather components with a time display.
+See the main project's [SDL-weather-forecast-ha.yaml](../../example_code/advanced/SDL-weather-forecast-ha.yaml) for a complete working example that combines both weather components with a time display.

@@ -49,25 +49,14 @@ little you wire* and *how much it computes and shows*.
 | **Square displays** | optional 2-page split via `stats_page_id` (creature page + stats page) | — |
 | **Best for** | the quickest drop-in: one include, any resolution, both orientations, minimal HA wiring | a full dashboard where you want every derived metric, the on-display Runway line and the colour-coded pace frame |
 
-In short: **all-in-one** is a single include that draws a compact,
-resolution-agnostic panel from five Home Assistant entities; **modular grid**
-is a tile-per-cell dashboard that computes and shows the full metric set, at the
-cost of an explicit per-orientation grid layout. The Runway line and the pace
-frame ship **only** on the grid builds — the all-in-one layout doesn't compute a
-pace ratio. The live device (the grid-portrait example) is a grid build.
+The Runway line and the pace frame ship **only** on the grid builds — the
+all-in-one layout doesn't compute a pace ratio. The live device is the
+grid-portrait example.
 
 ## Data flow
 
 Where the data comes from, what the device computes, and when which animation is
-shown. Two ways to assemble the Clawdmeter:
-
-- **All-in-one** — include `remote.yaml`; it draws the whole page and reads the
-  five entities in the [data contract](#home-assistant-data-contract) below.
-- **Modular grid** — include the individual tile packages
-  (`creature.yaml`, `usage_rate.yaml`, `time_to_100.yaml`,
-  `session_reset_clock.yaml`, `runway.yaml`, `stats_panel.yaml`, …) and place
-  each in its own grid cell. See
-  `example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443.yaml`.
+shown — for both builds (see the [comparison above](#all-in-one-vs-modular-grid)).
 
 ### 1. Where the entities come from
 
@@ -148,7 +137,8 @@ guard right after boot/reset. The full group table is in
 
 | File | Purpose |
 |---|---|
-| `remote.yaml` | The component: HA sensors, LVGL chrome (canvas + usage bars + labels), animation driver. Include this from a device config. |
+| `remote.yaml` | The **all-in-one** component: HA sensors, LVGL chrome (canvas + usage bars + labels), animation driver. Include this from a device config. |
+| `engine.yaml`, `creature.yaml`, … (the modular tile packages + `*_tile.yaml` wrappers) and `lang/{en,de,es,fr}.yaml` | The **modular grid** building blocks — one include per tile, placed into grid cells (see the [comparison table](#all-in-one-vs-modular-grid)) — plus the language packs. |
 | `clawdmeter_engine.h` | Header-only render + usage-rate engine, pulled in via `esphome.includes`. Exposes a small C API. |
 | `splash_animations.h` | Vendored, generated pixel-art animation data (13 animations, 20×20 grid, RGB565 palette). |
 | `tests/test_usage_rate.cpp` | Host (g++) unit test for the usage-rate state machine. |
@@ -199,7 +189,7 @@ reset and clears the window.
 | 2 active | `0.20 – 0.33` | busy | sway, surprise, bounce |
 | 3 heavy | `≥ 0.33` | maxed | bounce DJ, sway DJ, djmix |
 
-The window needs at least 2 samples spanning ≥ 4 minutes before it leaves idle,
+The window needs at least 2 samples spanning ≥ 2 minutes before it leaves idle,
 so the creature stays calm right after boot or a reset.
 
 ## Runway (`runway.yaml` + `runway_tile.yaml`)
@@ -318,7 +308,7 @@ Home Assistant without a reflash.
 |---|---|
 | `clawd_init(lv_obj_t* parent, int w, int h)` | Create the creature canvas on `parent`. The canvas is sized from `parent`'s *measured* content box (resolution-agnostic); `w`/`h` are only a fallback if the layout isn't resolved yet. Call from `on_boot` (priority `-100`, after LVGL is up). |
 | `clawd_tick()` | Advance the animation. Call from a 50 ms `interval`. |
-| `clawd_set_usage(session_pct, session_reset, weekly_pct, weekly_reset)` | Feed a new sample; only `session_pct` is used. Call from the session sensor's `on_value`. |
+| `clawd_set_usage(session_pct, session_reset_mins, weekly_pct, weekly_reset_mins)` | Feed a new sample; only `session_pct` is used. Call from the session sensor's `on_value`. |
 | `clawd_usage_sample(float)` / `clawd_usage_group()` | Lower-level sampler / current group accessor (used by the host test). |
 
 > Do **not** add C++ accessor functions named after the HA sensor IDs

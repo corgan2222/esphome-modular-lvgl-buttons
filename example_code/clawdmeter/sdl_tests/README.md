@@ -7,6 +7,7 @@ to eyeball layout changes across all aspect ratios before flashing anything.
 ```
 sdl_tests/
   run.sh              data-driven runner: one row per display, compiles + captures
+  run_data.sh         like run.sh, synthetic feed on (sim_feed=1) -> grid*-data.png
   capture.py          grabs the SDL window via Xlib, optional two-page swipe
   harnesses/          reusable SDL configs (one per layout family)
     sdl_single.yaml       all-in-one remote.yaml, single page
@@ -38,17 +39,16 @@ SDL build is Linux-native and needs WSLg's X server for the window.
    ```
    (`python-xlib` + `pillow` are needed by `capture.py`.)
 3. **SDL build deps**: `sudo apt install build-essential libsdl2-dev`.
-4. **Build dir `~/clawdsdl`** — PlatformIO rejects paths with spaces, and the
-   repo path has one ("esphome clawdmeter"), so we build in a space-free dir and
-   symlink the repo in:
+4. **Build dir `~/clawdsdl`** — a WSL-local build dir keeps the SDL build cache
+   off the Windows mount. Symlink the repo in:
    ```bash
    mkdir -p ~/clawdsdl
-   ln -s "/mnt/d/Coding/git-corgan/esphome clawdmeter/esphome-modular-lvgl-buttons" \
+   ln -s "/mnt/d/Coding/git-corgan/esphome_modular_lvgl_buttons/esphome-modular-lvgl-buttons" \
          ~/clawdsdl/esphome-modular-lvgl-buttons
-   cp "/mnt/d/Coding/git-corgan/esphome clawdmeter/.../secrets.yaml" ~/clawdsdl/   # if your harness needs it
    ```
    `run.sh` copies the active harness into `~/clawdsdl/` before each compile, so
-   includes resolve relative to the symlinked repo.
+   the `esphome-modular-lvgl-buttons/...` includes resolve via the symlink. The
+   SDL harnesses carry no `!secret`/WiFi, so no `secrets.yaml` is needed.
 
 ## Running
 

@@ -59,7 +59,7 @@ Add to your device `font:` block:
 
 ```
 $mdi_thermostat   $mdi_fan   $mdi_chevron_left
-$mdi_arrow_oscillating   $mdi_water_percent
+$mdi_arrow_oscillating
 ```
 
 ## Detail page layout
