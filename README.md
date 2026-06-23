@@ -67,46 +67,90 @@ Your device YAML composes a panel by including one hardware file, the shared inf
 
 ---
 
-## Quick start
+## Installation
 
-### 1. Prerequisites
+This library is a folder of `!include` building blocks. Your device YAML pulls
+them in by the literal path `esphome-modular-lvgl-buttons/...`, so the **whole
+repo has to live inside your ESPHome config directory**, right next to your
+device YAML and `secrets.yaml`. It is a **local folder, not a remote
+`packages:` source** — pointing `packages:` at the GitHub URL will *not* work,
+because the internal includes resolve relative to your config directory.
 
-ESPHome 2026.6.0 or later. For SVG image support (required by solar/tides modules):
+Target layout, however you get the files there:
 
-```bash
-pip install cairosvg
+```text
+/config/esphome/                     ← your ESPHome dashboard config dir
+├── esphome-modular-lvgl-buttons/    ← THIS repo, cloned/copied as a whole folder
+├── secrets.yaml                     ← wifi + lat/lon
+└── my-panel.yaml                    ← your device config (a copy of an example)
 ```
 
-### 2. Clone into your ESPHome config directory
+### Option A — Home Assistant ESPHome add-on (easiest)
+
+The ESPHome **Device Builder** add-on (the default builder since ESPHome
+2026.6.0) stores its configs in `/config/esphome/`. You only have to drop this
+repo into that folder.
+
+1. **Get the repo into `/config/esphome/`.** Easiest with a terminal: install
+   the **Advanced SSH & Web Terminal** add-on, open its terminal, and run:
+
+   ```bash
+   cd /config/esphome
+   git clone https://github.com/corgan2222/esphome-modular-lvgl-buttons.git
+   ```
+
+   *No terminal?* On GitHub use **Code → Download ZIP**, unzip it, and copy the
+   folder into `/config/esphome/` with the **Samba** or **Studio Code Server** /
+   **File editor** add-on. Rename it so it is exactly
+   `esphome-modular-lvgl-buttons` (drop any `-main` suffix).
+
+2. **Add your device config.** Copy the example that matches your board from
+   [`example_code/clawdmeter/`](example_code/clawdmeter/) — start with
+   [`all-in-one/`](example_code/clawdmeter/all-in-one/), it is the simplest — up
+   into `/config/esphome/`, rename it e.g. `my-panel.yaml`, and edit only the
+   `substitutions:` block at the top (your HA sensor IDs, board rotation).
+
+   > **Clawdmeter needs a usage data source.** Those sensor IDs come from Home
+   > Assistant — install the
+   > [trickv/hass-claude-usage](https://github.com/trickv/hass-claude-usage)
+   > integration, or expose your own sensors with the same usage % +
+   > reset-timestamp values. See
+   > [ui/clawdmeter/README.md](ui/clawdmeter/README.md) for the entity reference.
+
+3. **Add secrets.** In the ESPHome dashboard open **Secrets** (top-right ⋮ menu)
+   and add:
+
+   ```yaml
+   wifi_ssid: "your-ssid"
+   wifi_password: "your-wifi-password"
+   ap_password: "your-fallback-ap-password"
+   latitude: 0.0000
+   longitude: 0.0000
+   ```
+
+   This writes `/config/esphome/secrets.yaml`, exactly where the includes look.
+
+4. **Install.** Your config now appears as a card in the ESPHome dashboard —
+   click **⋮ → Install → Wirelessly** (or connect the board by USB to the Home
+   Assistant host for the very first flash).
+
+> **Updating later:** in the terminal run
+> `cd /config/esphome/esphome-modular-lvgl-buttons && git pull`, then re-install
+> the device from the dashboard.
+
+### Option B — ESPHome CLI (without Home Assistant)
+
+For SVG image support (required by the solar/tides modules): `pip install cairosvg`.
 
 ```bash
 cd /config   # or wherever your ESPHome configs live
-git clone https://github.com/agillis/esphome-modular-lvgl-buttons.git
-```
-
-### 3. Set up secrets
-
-Create `secrets.yaml` in your ESPHome config root (one level above this repo):
-
-```yaml
-wifi_ssid: "your-ssid"
-wifi_password: "your-wifi-password"
-ap_password: "your-fallback-ap-password"
-latitude: 0.0000
-longitude: 0.0000
-```
-
-### 4. Create your device config
-
-Copy the closest example from `example_code/` and adapt it, or start from scratch:
-
-
-
-### 5. Flash
-
-```bash
+git clone https://github.com/corgan2222/esphome-modular-lvgl-buttons.git
+# create secrets.yaml (the same 5 keys as above) next to the repo,
+# copy an example device config, then:
 esphome run my-panel.yaml
 ```
+
+Requires ESPHome 2026.6.0 or later.
 
 ---
 
