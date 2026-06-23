@@ -2,3 +2,7 @@ secrets.yaml
 **/secrets.yaml
 .DS_Store
 ui/clawdmeter/HANDOVER.md
+
+# Python bytecode (e.g. build cache of vendored external_components like components/gsl3680)
+__pycache__/
+*.pyc

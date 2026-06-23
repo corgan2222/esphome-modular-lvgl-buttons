@@ -27,12 +27,34 @@ and flash:
 
 | Example | Layout |
 |---|---|
-| [`…-jc4880p443-clawdmeter-grid.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml) | Modular grid tiles, **landscape** (creature left, stats right) — incl. the [pace frame](#pace-frame-pace_frameyaml) |
-| [`…-jc4880p443-clawdmeter-grid-portrait.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid-portrait.yaml) | Modular grid tiles, **portrait** (creature top, stats below) — incl. the [pace frame](#pace-frame-pace_frameyaml) |
-| [`…-jc4880p443-clawdmeter.yaml`](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter.yaml) | All-in-one full-screen `remote.yaml` |
+| [`grid/…-jc4880p443.yaml`](../../example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443.yaml) | Modular grid tiles, **landscape** (creature left, stats right) — incl. the [pace frame](#pace-frame-pace_frameyaml) |
+| [`grid/…-jc4880p443-portrait.yaml`](../../example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443-portrait.yaml) | Modular grid tiles, **portrait** (creature top, stats below) — incl. the [pace frame](#pace-frame-pace_frameyaml) |
+| [`all-in-one/…-jc4880p443.yaml`](../../example_code/clawdmeter/all-in-one/guition-esp32-p4-jc4880p443.yaml) | All-in-one full-screen `remote.yaml` |
 
 See [Usage](#usage) for the minimal include, and [Data flow](#data-flow) for how
 the pieces fit together.
+
+## All-in-one vs. modular grid
+
+There are two ways to assemble the Clawdmeter. Pick by the trade-off between *how
+little you wire* and *how much it computes and shows*.
+
+| | **All-in-one** (`remote.yaml`) | **Modular grid** (individual tiles) |
+|---|---|---|
+| **Include** | one super-include (`uid: clawd`) | ~12 tile includes (`engine.yaml` once, then `creature.yaml`, `usage_rate.yaml`×2, `time_to_100.yaml`, `session_reset_clock.yaml`×2, `runway.yaml`, `pace_frame.yaml`, `stats_panel.yaml`, `anim_select.yaml`) |
+| **Layout** | fixed two-region split — creature on top, stats below — sized by **percentage**, so it fits any resolution and both orientations with no cell wiring | explicit `layout: 4x4` grid; **you** place each tile with `row`/`column`/`*_span` → one config per orientation (landscape **and** portrait variants) |
+| **HA inputs** | thin **5-entity** [data contract](#home-assistant-data-contract): session/weekly % + two reset timestamps + a status line | **6 raw `ha_*` entities** (adds extra-usage % + credits) in one block at the top of the device YAML |
+| **What it shows** | creature + session/weekly usage bars + reset countdowns + status | everything in all-in-one **plus** burn rate (5 m/30 m), time-to-100 % + ETA clock, the [Runway](#runway-runwayyaml--runway_tileyaml) verdict, the breathing [pace frame](#pace-frame-pace_frameyaml), extra-usage bar and an animation picker |
+| **Computed on device** | the animation only (from `session_pct`) | the animation **plus** burn rate, time-to-100, Runway pace ratio — each its own package, all also exposed as device/HA entities |
+| **Square displays** | optional 2-page split via `stats_page_id` (creature page + stats page) | — |
+| **Best for** | the quickest drop-in: one include, any resolution, both orientations, minimal HA wiring | a full dashboard where you want every derived metric, the on-display Runway line and the colour-coded pace frame |
+
+In short: **all-in-one** is a single include that draws a compact,
+resolution-agnostic panel from five Home Assistant entities; **modular grid**
+is a tile-per-cell dashboard that computes and shows the full metric set, at the
+cost of an explicit per-orientation grid layout. The Runway line and the pace
+frame ship **only** on the grid builds — the all-in-one layout doesn't compute a
+pace ratio. The live device (the grid-portrait example) is a grid build.
 
 ## Data flow
 
@@ -45,7 +67,7 @@ shown. Two ways to assemble the Clawdmeter:
   (`creature.yaml`, `usage_rate.yaml`, `time_to_100.yaml`,
   `session_reset_clock.yaml`, `runway.yaml`, `stats_panel.yaml`, …) and place
   each in its own grid cell. See
-  `example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml`.
+  `example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443.yaml`.
 
 ### 1. Where the entities come from
 
@@ -255,8 +277,8 @@ It's **pure YAML** — no engine or C++ change. It only restyles an *existing*
 LVGL tile (the creature's outer tile, `${creature_uid}_creature_root`), so it
 needs both a `runway.yaml` include (for the ratio) and the modular `creature.yaml`
 tile (for the target). That's why it ships only on the two **modular grid**
-examples — [landscape](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid.yaml)
-and [portrait](../../example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter-grid-portrait.yaml).
+examples — [landscape](../../example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443.yaml)
+and [portrait](../../example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443-portrait.yaml).
 The all-in-one `remote.yaml` builds don't compute a pace ratio, so they can't use it.
 
 ```yaml
@@ -306,7 +328,7 @@ Home Assistant without a reflash.
 ## Usage
 
 Add to a device config (see
-`example_code/clawdmeter/guition-esp32-p4-jc4880p443-clawdmeter.yaml`):
+`example_code/clawdmeter/all-in-one/guition-esp32-p4-jc4880p443.yaml`):
 
 ```yaml
 packages:

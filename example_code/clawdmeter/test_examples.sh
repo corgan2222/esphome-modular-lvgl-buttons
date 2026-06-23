@@ -52,8 +52,13 @@ pass=0; fail=0; failed_names=()
 echo "mode: esphome $mode   work: $WORK"
 echo
 
-for f in "$EXAMPLES"/*.yaml; do
-  name="$(basename "$f" .yaml)"
+# Recurse into the category subfolders (all-in-one/, grid/, …); skip sdl_tests/
+# (those are SDL harness fragments, not standalone device configs). The name is
+# subdir-qualified (e.g. "grid/guition-…") so `--compile grid` filters by folder
+# and the jc4827 basename that exists in BOTH folders doesn't collide.
+while IFS= read -r f; do
+  rel="${f#"$EXAMPLES"/}"
+  name="${rel%.yaml}"
   [ -n "$filter" ] && [[ "$name" != *"$filter"* ]] && continue
 
   printf '%-52s ' "$name"
@@ -65,7 +70,7 @@ for f in "$EXAMPLES"/*.yaml; do
     sed -n '/ERROR\|Error\|error:/p' "$LOG" | head -8 | sed 's/^/    /'
   fi
   rm -f "$TMP"
-done
+done < <(find "$EXAMPLES" -name '*.yaml' -not -path '*/sdl_tests/*' | sort)
 
 echo
 echo "==== $pass passed, $fail failed ===="

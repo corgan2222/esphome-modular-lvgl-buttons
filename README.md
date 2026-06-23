@@ -42,8 +42,14 @@ into a green → orange → red status border.
 - 📖 **[ui/clawdmeter/README.md](ui/clawdmeter/README.md)** — data flow (where
   the entities come from, what the device computes, when which animation is
   shown) + full file/variable reference.
+- 🧩 **Two ways to build it:** an **all-in-one** single include (compact,
+  resolution-agnostic, five HA entities) or a **modular grid** of tiles (full
+  metric set + Runway line + pace frame). See the
+  [comparison](ui/clawdmeter/README.md#all-in-one-vs-modular-grid).
 - 🚀 Ready-to-flash examples in
-  [`example_code/clawdmeter/`](example_code/clawdmeter/).
+  [`example_code/clawdmeter/`](example_code/clawdmeter/) — sorted into
+  [`all-in-one/`](example_code/clawdmeter/all-in-one/) and
+  [`grid/`](example_code/clawdmeter/grid/).
 
 ---
 
