@@ -164,7 +164,7 @@ packages:
 
   # Runway — COMPUTED on the ESP: compares "time until session reset" against
   # "time until the limit is hit at the current 30m burn rate" and emits a verdict
-  # ("Nm to spare" / "Nm short" / "clear") + a pace ratio. Always computed and
+  # ("No · Nm to spare" / "Yes · Nm early" / "No") + a pace ratio. Always computed and
   # exposed as device entities. The on-display line is OFF here by default — set
   # `show_runway: "true"` on clawd_stats below to draw it (see grid-portrait).
   clawd_rw: !include

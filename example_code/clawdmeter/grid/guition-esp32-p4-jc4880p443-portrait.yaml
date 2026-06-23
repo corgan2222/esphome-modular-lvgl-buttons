@@ -167,7 +167,7 @@ packages:
 
   # Runway — COMPUTED on the ESP: compares "time until session reset" against
   # "time until the limit is hit at the current 30m burn rate" and emits a verdict
-  # ("Nm to spare" / "Nm short" / "clear") + a pace ratio. Exposed as device
+  # ("No · Nm to spare" / "Yes · Nm early" / "No") + a pace ratio. Exposed as device
   # entities; stats_panel.yaml also draws the verdict inline from its own ids.
   clawd_rw: !include
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/runway.yaml

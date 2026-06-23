@@ -49,7 +49,7 @@ substitutions:
   t_fmt_ttl_clk:       'Avant 100%% - %d min - %s'
   t_fmt_ttl:           'Avant 100%% - %s'
   t_fmt_burn:          'Conso  5m %s  \xC2\xB7  30m %s %%/h'
-  t_fmt_runway:        'Runway - %s'
+  t_fmt_runway:        'Atteint la limite ? %s'
 
   # ---- stats panel: static placeholder labels (shown until first repaint) ----
   t_ph_session: 'Session —'
@@ -57,16 +57,16 @@ substitutions:
   t_ph_extra:   'Usage extra —'
   t_ph_ttl:     'Avant 100% —'
   t_ph_burn:    'Conso —'
-  t_ph_runway:  'Runway —'
+  t_ph_runway:  'Atteint la limite ? —'
 
   # ---- time_to_100 text sensor ----
   t_ttl_mins:    'dans %d min'
   t_ttl_unknown: 'inconnu'
 
   # ---- runway verdict (reset vs limit) — used by runway.yaml + stats_panel ----
-  t_runway_spare:   '%d min de marge'
-  t_runway_short:   'manque %d min'
-  t_runway_clear:   'libre'
+  t_runway_spare:   'Non \xC2\xB7 %d min de marge'
+  t_runway_short:   'Oui \xC2\xB7 %d min plus tôt'
+  t_runway_clear:   'Non'
   t_runway_unknown: 'inconnu'
 
   # ---- remote.yaml: single-page (non-grid) stats labels ----
@@ -81,4 +81,4 @@ substitutions:
   t_tile_ttl: 'Avant 100%'
 
   # ---- runway_tile.yaml: optional display tile label ----
-  t_tile_runway: 'Runway'
+  t_tile_runway: 'Atteint la limite ?'

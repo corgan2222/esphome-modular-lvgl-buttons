@@ -46,7 +46,7 @@ substitutions:
   t_fmt_ttl_clk:       'Time till 100%% - %dm - %s'
   t_fmt_ttl:           'Time till 100%% - %s'
   t_fmt_burn:          'Burn  5m %s  \xC2\xB7  30m %s %%/h'
-  t_fmt_runway:        'Runway - %s'
+  t_fmt_runway:        'Hit limit? %s'
 
   # ---- stats panel: static placeholder labels (shown until first repaint) ----
   t_ph_session: 'Session —'
@@ -54,16 +54,16 @@ substitutions:
   t_ph_extra:   'Extra Usage —'
   t_ph_ttl:     'Time till 100% —'
   t_ph_burn:    'Burn —'
-  t_ph_runway:  'Runway —'
+  t_ph_runway:  'Hit limit? —'
 
   # ---- time_to_100 text sensor ----
   t_ttl_mins:    'in %d min'
   t_ttl_unknown: 'unknown'
 
   # ---- runway verdict (reset vs limit) — used by runway.yaml + stats_panel ----
-  t_runway_spare:   '%dm to spare'
-  t_runway_short:   '%dm short'
-  t_runway_clear:   'clear'
+  t_runway_spare:   'No \xC2\xB7 %dm to spare'
+  t_runway_short:   'Yes \xC2\xB7 %dm early'
+  t_runway_clear:   'No'
   t_runway_unknown: 'unknown'
 
   # ---- remote.yaml: single-page (non-grid) stats labels ----
@@ -78,4 +78,4 @@ substitutions:
   t_tile_ttl: 'Till 100%'
 
   # ---- runway_tile.yaml: optional display tile label ----
-  t_tile_runway: 'Runway'
+  t_tile_runway: 'Hit limit?'
