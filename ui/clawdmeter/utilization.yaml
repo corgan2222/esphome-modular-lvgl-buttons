@@ -1,0 +1,195 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/utilization.yaml
+# ON-DEVICE "how hard did I lean on the limit lately". Computes the time-weighted
+# mean of the usage % over the last 12 h, 24 h and 7 days (= "utilisation": the
+# average fraction of the limit that was in use across the window). All three
+# numbers are published as ONE backend entity — a text_sensor whose state is a
+# small JSON blob — so Home Assistant can expose them as ATTRIBUTES of a single
+# entity. No LVGL, nothing drawn on the display: pure backend entity.
+#
+# Why a JSON text_sensor and not three sensors / one sensor with attributes:
+# ESPHome's native API can only publish an entity's STATE — a device cannot
+# attach custom attributes to the entities it exports. The idiomatic way to get
+# "one entity with attributes" is therefore: device publishes a JSON string,
+# Home Assistant unpacks it into attributes with a template sensor. The ready-to-
+# paste HA template is at the bottom of this file.
+#
+# How the windows are computed (RAM-only, no clock needed):
+#   * 168 hourly buckets (7 days) in a ring, indexed by hour-of-uptime % 168.
+#   * Each sample integrates the elapsed slice into the current bucket as
+#     area += avg(prev%, cur%) * dt  and  dur += dt  (trapezoidal).
+#   * A window mean is Sum(area)/Sum(dur) over the most recent N buckets
+#     (N = 12, 24, 168). Empty buckets contribute nothing, so a fresh boot
+#     reports over min(window, uptime) — same honesty as usage_rate.yaml.
+#   * `cov_h` in the JSON tells you how many hours of history actually back the
+#     numbers (capped at 168), so "warming up" is visible instead of silent.
+#
+# Does NOT require engine.yaml. Pure ESPHome, no custom C++ header. RAM-only
+# state (restore_value: false): a reboot simply re-warms the windows; the device
+# is mains-powered so this is rare.
+#
+# vars:
+#   uid            required  namespace prefix (exposed entity id ${uid}_util)
+#   source_entity  optional  HA usage % sensor whose utilisation we average.
+#                            Default is an invalid SET_ME placeholder
+#                            (sensor.SET_ME_session_usage) so a missing binding
+#                            reads as "unavailable" rather than a wrong id. Point
+#                            it at the session-usage % (same source as the burn
+#                            rate) or at the weekly-usage % — your choice.
+#   name           optional  entity name exposed to HA (default "Usage Utilization")
+#   sample_sec     optional  sampling / integration cadence in seconds (default 60)
+
+globals:
+  # Per-hour accumulators (ring of 168 = 7 days). Array globals must NOT set an
+  # initial_value in ESPHome (the generated ctor can't take an array arg); they
+  # zero-init by default, which is exactly what we want.
+  - id: ${uid}_u_area      # Sum(avg_pct * dt) per hourly bucket
+    type: float[168]
+    restore_value: false
+  - id: ${uid}_u_dur       # Sum(dt) per hourly bucket (seconds)
+    type: float[168]
+    restore_value: false
+  # Hour index (floor(uptime_seconds / 3600)) of the bucket we are filling.
+  - id: ${uid}_u_hour
+    type: int
+    restore_value: false
+    initial_value: '-1'
+  # Previous sample timestamp (s) and value (%), for trapezoidal integration.
+  - id: ${uid}_u_last_t
+    type: float
+    restore_value: false
+    initial_value: 'NAN'
+  - id: ${uid}_u_last_pct
+    type: float
+    restore_value: false
+    initial_value: 'NAN'
+
+sensor:
+  # Raw usage % pulled from HA — internal, just the signal we average.
+  - platform: homeassistant
+    id: ${uid}_u_src
+    entity_id: ${source_entity | default("sensor.SET_ME_session_usage")}
+    internal: true
+
+text_sensor:
+  # One entity. State = JSON {"util_12h":..,"util_24h":..,"util_7d":..,"cov_h":..}.
+  # The lambda both integrates this slice and emits the windowed means, so a
+  # single component owns the whole pipeline.
+  - platform: template
+    id: ${uid}_util
+    name: ${name | default("Usage Utilization")}
+    icon: mdi:chart-box-outline
+    update_interval: ${sample_sec | default(60)}s
+    lambda: |-
+      if (!id(${uid}_u_src).has_state() || std::isnan(id(${uid}_u_src).state)) {
+        return {};  // no input -> keep the last published JSON
+      }
+      const int   H        = 168;
+      const float now      = (float) millis() / 1000.0f;
+      const float cur      = id(${uid}_u_src).state;
+      const int   hour_now = (int) (now / 3600.0f);
+
+      if (id(${uid}_u_hour) < 0) {
+        // First sample: seed the integrator, no slice to add yet.
+        id(${uid}_u_hour)     = hour_now;
+        id(${uid}_u_last_t)   = now;
+        id(${uid}_u_last_pct) = cur;
+      } else {
+        // Roll into new hourly bucket(s), clearing the slots we reuse (the ones
+        // holding data from 168 h ago). Cap at H so a huge gap just wipes all.
+        if (hour_now != id(${uid}_u_hour)) {
+          int steps = hour_now - id(${uid}_u_hour);
+          if (steps > H) steps = H;
+          for (int s = 1; s <= steps; s++) {
+            int b = (id(${uid}_u_hour) + s) % H;
+            id(${uid}_u_area)[b] = 0.0f;
+            id(${uid}_u_dur)[b]  = 0.0f;
+          }
+          id(${uid}_u_hour) = hour_now;
+        }
+        // Integrate the elapsed slice into the current bucket (trapezoid).
+        // A gap (source was unavailable, or a reboot/disconnect) leaves a stale
+        // last sample; blending it across the gap would smear a wrong % over up
+        // to a whole bucket. Same principle as usage_rate.yaml (re-baseline on a
+        // discontinuity rather than integrate across it — there a reset-drop
+        // flushes the ring), here applied to a time gap: when the step since the
+        // last sample runs much longer than a sampling interval, skip the slice
+        // and just re-baseline — we have no trustworthy data for the gap, so it
+        // contributes no area AND no duration (which in turn keeps cov_h honest
+        // below).
+        float dt = now - id(${uid}_u_last_t);
+        const float gap_limit = ${sample_sec | default(60)} * 3.0f;
+        if (dt > 0.0f && dt <= gap_limit) {
+          float pct_avg = 0.5f * (id(${uid}_u_last_pct) + cur);
+          int b = hour_now % H;
+          id(${uid}_u_area)[b] += pct_avg * dt;
+          id(${uid}_u_dur)[b]  += dt;
+        }
+        id(${uid}_u_last_t)   = now;
+        id(${uid}_u_last_pct) = cur;
+      }
+
+      // Windowed time-weighted means in one pass over the ring (most-recent
+      // first). Bucket k buckets ago contributes to every window it falls in.
+      float a12 = 0, d12 = 0, a24 = 0, d24 = 0, a7 = 0, d7 = 0;
+      for (int k = 0; k < H; k++) {
+        int b = (((hour_now - k) % H) + H) % H;
+        float ab = id(${uid}_u_area)[b];
+        float db = id(${uid}_u_dur)[b];
+        if (k < 12) { a12 += ab; d12 += db; }
+        if (k < 24) { a24 += ab; d24 += db; }
+        a7 += ab; d7 += db;
+      }
+      float m12 = d12 > 0.0f ? a12 / d12 : NAN;
+      float m24 = d24 > 0.0f ? a24 / d24 : NAN;
+      float m7d = d7  > 0.0f ? a7  / d7  : NAN;
+
+      // Hours of history actually backing the numbers = the total integrated
+      // duration across the ring (d7 = Sum(dur) over all H buckets, computed in
+      // the loop above), NOT wall-clock since the first sample. This way a gap
+      // the windows have since dropped, or buckets cleared by a >7d roll, shrink
+      // the reported coverage instead of overstating it — and it self-heals.
+      float cov = d7 / 3600.0f;
+      if (cov > (float) H) cov = (float) H;
+
+      // Format a value as a 1-decimal number or JSON null (no id() inside, so
+      // this nested lambda is always safe). printf'ing NaN would break the JSON.
+      auto fmt = [](float v) -> std::string {
+        if (std::isnan(v)) return std::string("null");
+        char nb[16];
+        snprintf(nb, sizeof(nb), "%.1f", v);
+        return std::string(nb);
+      };
+
+      std::string js = std::string("{\"util_12h\":") + fmt(m12) +
+                       ",\"util_24h\":" + fmt(m24) +
+                       ",\"util_7d\":"  + fmt(m7d) +
+                       ",\"cov_h\":"    + fmt(cov) + "}";
+      return js;
+
+# ---------------------------------------------------------------------------
+# Home Assistant side — turn the JSON into ONE entity with attributes.
+# The device publishes a text entity (id below depends on your esphome `name:`
+# and this entity's `name:`), e.g. sensor.clawdmeter_p4_grid_portrait_usage_utilization.
+# Add this template sensor to HA `configuration.yaml` (or a packages file):
+#
+# template:
+#   - sensor:
+#       - name: "Claude Usage Utilization"
+#         unique_id: claude_usage_utilization
+#         unit_of_measurement: "%"
+#         icon: mdi:chart-box-outline
+#         availability: >
+#           {{ states('sensor.SET_ME_usage_utilization') not in
+#              ['unknown','unavailable','none',''] }}
+#         # State = the 24 h utilisation; swap to util_12h / util_7d to taste.
+#         state: >
+#           {{ (states('sensor.SET_ME_usage_utilization') | from_json).get('util_24h') }}
+#         attributes:
+#           util_12h: "{{ (states('sensor.SET_ME_usage_utilization') | from_json).get('util_12h') }}"
+#           util_24h: "{{ (states('sensor.SET_ME_usage_utilization') | from_json).get('util_24h') }}"
+#           util_7d:  "{{ (states('sensor.SET_ME_usage_utilization') | from_json).get('util_7d') }}"
+#           coverage_hours: "{{ (states('sensor.SET_ME_usage_utilization') | from_json).get('cov_h') }}"
+#
+# Replace sensor.SET_ME_usage_utilization with the actual JSON entity id from the
+# ESPHome device. `null` values in the JSON become None in HA (window not warmed yet).
+# ---------------------------------------------------------------------------

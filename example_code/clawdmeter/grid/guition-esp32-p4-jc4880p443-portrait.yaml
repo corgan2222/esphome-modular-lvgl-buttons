@@ -248,6 +248,27 @@ packages:
       rate_name: ${t_name_usage_rate | default("Usage Rate")}
       diag_name: ${t_name_usage_diag | default("Usage Diag")}
 
+  # Session fill time — COMPUTED on the ESP: how long the most recently COMPLETED
+  # fill cycle took (session reset -> 100%), in minutes. BACKEND ONLY: exposed as
+  # a device sensor (ESPHome dashboard / HA), nothing drawn on the display.
+  clawd_fill: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/fill_time.yaml
+    vars:
+      uid: clawd_fill
+      source_entity: $ha_session_usage
+      name: ${t_name_fill_time | default("Session Fill Time")}
+
+  # Usage utilisation — COMPUTED on the ESP: time-weighted mean usage % over the
+  # last 12h / 24h / 7d, published as ONE JSON text entity. HA unpacks the JSON
+  # into attributes (see the ready-to-paste template at the bottom of
+  # utilization.yaml). BACKEND ONLY: nothing drawn on the display.
+  clawd_util: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/utilization.yaml
+    vars:
+      uid: clawd_util
+      source_entity: $ha_session_usage
+      name: ${t_name_utilization | default("Usage Utilization")}
+
 lvgl:
   pages:
     - id: main_page
