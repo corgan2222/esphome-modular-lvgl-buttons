@@ -1,0 +1,83 @@
+# view_mode.yaml — runtime page cycling between stats (page 1) and charts.
+# Guarded: only include this when charts_page.yaml is also included.
+# Build the alternation from a 1s interval + counter (ESPHome `interval`
+# period is compile-time fixed; alt_seconds must be runtime-adjustable).
+select:
+  - platform: template
+    name: ${t_view_mode_name | default("View Mode")}
+    id: ${uid}_view_mode
+    optimistic: true
+    restore_value: true
+    options:
+      - ${t_view_show_stats | default("Show Stats")}
+      - ${t_view_show_graph | default("Show Graph")}
+      - ${t_view_alternate | default("Alternate")}
+    initial_option: ${t_view_show_stats | default("Show Stats")}
+    on_value:
+      - script.execute: ${uid}_apply_view
+
+number:
+  - platform: template
+    name: ${t_view_alt_seconds_name | default("Alternate Seconds")}
+    id: ${uid}_alt_seconds
+    optimistic: true
+    restore_value: true
+    min_value: 3
+    max_value: 300
+    step: 1
+    initial_value: ${alt_seconds_default | default("10")}
+    unit_of_measurement: "s"
+
+globals:
+  - id: ${uid}_alt_tick
+    type: int
+    restore_value: no
+    initial_value: "0"
+  # Tracks which of the two cycle pages the alternation last showed, so the
+  # toggle is an explicit 2-target flip (stats <-> charts) via lvgl.page.show
+  # rather than lvgl.page.next: this config has a 3rd LVGL page (info_screen,
+  # reachable by swipe), so page.next would surface it during auto-cycle.
+  - id: ${uid}_alt_on_charts
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+script:
+  - id: ${uid}_apply_view
+    then:
+      - lambda: 'id(${uid}_alt_tick) = 0;'
+      - if:
+          condition:
+            lambda: 'return id(${uid}_view_mode).state == "${t_view_show_graph | default("Show Graph")}";'
+          then:
+            - lvgl.page.show: ${charts_page_id | default("clawd_charts")}
+      - if:
+          condition:
+            lambda: 'return id(${uid}_view_mode).state == "${t_view_show_stats | default("Show Stats")}";'
+          then:
+            - lvgl.page.show: ${stats_page_id | default("main_page")}
+
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(${uid}_view_mode).state == "${t_view_alternate | default("Alternate")}";'
+          then:
+            - lambda: 'id(${uid}_alt_tick) += 1;'
+            - if:
+                condition:
+                  lambda: 'return id(${uid}_alt_tick) >= (int) id(${uid}_alt_seconds).state;'
+                then:
+                  # explicit 2-target toggle (NOT lvgl.page.next: info_screen
+                  # is a 3rd page that page.next would cycle into).
+                  - lambda: |-
+                      id(${uid}_alt_tick) = 0;
+                      id(${uid}_alt_on_charts) = !id(${uid}_alt_on_charts);
+                  - if:
+                      condition:
+                        lambda: 'return id(${uid}_alt_on_charts);'
+                      then:
+                        - lvgl.page.show: ${charts_page_id | default("clawd_charts")}
+                      else:
+                        - lvgl.page.show: ${stats_page_id | default("main_page")}

@@ -84,3 +84,40 @@ substitutions:
 
   # ---- runway_tile.yaml: optional display tile label ----
   t_tile_runway: '¿Llega al límite?'
+
+  # ---- modern layout (layout_modern.yaml) ----
+  # Plain labels keep a single literal % ; *_fmt tokens are snprintf formats
+  # (%s / %.1f kept verbatim).
+  t_modern_session:      'Sesión'
+  t_modern_min:          'min'
+  t_modern_till:         'Hasta 100%'
+  t_modern_burn:         'Consumo'
+  t_modern_burn5_unit:   '%/h  5 min'
+  t_modern_burn30_unit:  '%/h  30 min'
+  t_modern_hit:          'Llega al límite'
+  t_modern_hit_note:     'runway'
+  t_modern_weekly:       'Semana'
+  t_modern_extra:        'Extra'
+  t_modern_reset_fmt:    'Reset %s'
+  t_modern_eta_fmt:      'ETA %s'
+  t_modern_credits_fmt:  '%.1f cr'
+
+  # ---- charts page (charts_page.yaml) ----
+  # Plain LVGL label strings (no printf placeholders). Leading/trailing spaces are
+  # intentional padding before the colored legend dots — keep them inside the quotes.
+  t_charts_title:           'Uso de Claude'
+  t_charts_legend_session:  ' Uso sesión   '
+  t_charts_legend_weekly:   ' Uso semanal'
+  t_charts_legend_credits:  ' Créditos extra'
+  t_charts_legend_limit:    ' Límite extra 20.0 cr'
+
+  # ---- view-mode (view_mode.yaml) ----
+  # t_view_mode_name / t_view_alt_seconds_name son nombres de entidad HA; los tres
+  # t_view_show_*/t_view_alternate son las OPCIONES del select (también comparadas
+  # en los lambdas apply_view/interval). restore_value guarda la opción elegida,
+  # así que mantén estos tokens de opción ESTABLES por idioma.
+  t_view_mode_name:        'Modo vista'
+  t_view_show_stats:       'Estadísticas'
+  t_view_show_graph:       'Gráfico'
+  t_view_alternate:        'Alternar'
+  t_view_alt_seconds_name: 'Segundos cambio'

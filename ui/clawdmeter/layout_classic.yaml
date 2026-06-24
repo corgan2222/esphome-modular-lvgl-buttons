@@ -1,0 +1,53 @@
+# layout_classic.yaml — page-1 "classic" look (creature + stats panel).
+# Selected at compile time by the device config's `design: classic`, via the
+# dynamic include `layout_${design}.yaml` (Task 0.1 PASS).
+#
+# This bundles the UNEDITED creature.yaml + stats_panel.yaml packages, carrying
+# the exact vars the device config used to pass them inline (byte-for-byte
+# visual parity with the pre-refactor page 1). The backend compute packages
+# (clawd_engine, clawd_burn5/30, clawd_ttl, clawd_reset, clawd_wreset, clawd_rw,
+# clawd_pace_frame, clawd_anim) stay in the device config. The ha_* entity ids
+# arrive here as inherited top-level substitutions.
+#
+# MECHANISM NOTE (Task 0.1 correction): every package here is pulled with the
+# `!include` tag form (`key: !include` + `file:`), NOT a bare `file:` key — a
+# bare `file:` makes ESPHome read it as a component ("Component not found: file").
+
+packages:
+  # The animated creature — TOP half of the screen (rows 0-1, full width), with
+  # a dynamic margin so it doesn't kiss the edges. AUTO-mode animation is driven
+  # by the REAL session-usage % so the creature gets livelier as burn climbs.
+  clawd_creature: !include
+    file: creature.yaml
+    vars:
+      uid: clawd_c
+      row: 0
+      column: 0
+      row_span: 2
+      column_span: 4
+      size: "88%"   # ~6% dynamic margin on every side
+      session_pct_entity: ${ha_session_usage}
+
+  # Stats panel — the on-display BOTTOM half: session / weekly / extra-usage /
+  # time-till-100% bars + a 5m/30m burn line, runway verdict line ON. Reads the
+  # derived time values from the backend packages BY ID. Placed rows 2-3.
+  clawd_stats: !include
+    file: stats_panel.yaml
+    vars:
+      uid: clawd_stats
+      row: 2
+      column: 0
+      row_span: 2
+      column_span: 4
+      side_margin: 28   # even left+right gap to the screen edges (portrait)
+      show_runway: "true"   # draw the on-display runway verdict line (local display)
+      session_entity: ${ha_session_usage}
+      weekly_entity: ${ha_week_usage}
+      extra_entity: ${ha_extra_usage}
+      credits_entity: ${ha_extra_credits}
+      session_clock_id: clawd_reset_reset_clock
+      session_resetin_id: clawd_reset_reset_in_min
+      weekly_clock_id: clawd_wreset_reset_clock
+      ttl_eta_id: clawd_ttl_eta_clock
+      burn5_id: clawd_burn5_rate
+      burn30_id: clawd_burn30_rate

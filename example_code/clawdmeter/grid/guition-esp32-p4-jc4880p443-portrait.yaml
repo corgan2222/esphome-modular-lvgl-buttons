@@ -42,6 +42,15 @@ substitutions:
   ha_session_reset: "sensor.claude_usage_stefan_pro_session_reset_time"   # session reset, timestamp
   ha_weekly_reset:  "sensor.claude_usage_stefan_pro_weekly_reset_time"    # weekly reset, timestamp
 
+  # ---- Page-1 design (compile-time): classic = creature + stats panel,
+  #      modern = dark card layout. Selects ui/clawdmeter/layout_${design}.yaml.
+  design: classic   # classic | modern
+
+  # ---- Charts page sampler cadence (minutes). The clawd_charts page snapshots
+  #      the HA usage/credits values into its history ring every N minutes
+  #      (90-sample cap ~= 12h at the default). Lower = denser graph, faster fill.
+  chart_sample_min: "8"
+
   icon_font: mdi_icons_40
   text_font: nunito_20
   text_color: white
@@ -99,21 +108,11 @@ packages:
   # runs the frame driver; every clawd_* function becomes available afterwards.
   clawd_engine: !include esphome-modular-lvgl-buttons/ui/clawdmeter/engine.yaml
 
-  # The animated creature — TOP half of the screen (rows 0-1, full width), with a
-  # dynamic margin so it doesn't kiss the edges. Drives AUTO-mode animation from
-  # the session %.
-  clawd_creature: !include
-    file: esphome-modular-lvgl-buttons/ui/clawdmeter/creature.yaml
-    vars:
-      uid: clawd_c
-      row: 0
-      column: 0
-      row_span: 2
-      column_span: 4
-      size: "88%"   # ~6% dynamic margin on every side
-      # AUTO-mode animation is driven by the REAL session-usage % so the creature
-      # gets livelier as the burn rate climbs (else it stays stuck in idle).
-      session_pct_entity: $ha_session_usage
+  # Page-1 layout (compile-time switch via `design:`) — `classic` pulls in the
+  # creature + stats panel; `modern` the dark card layout. The creature/stats
+  # package vars now live inside ui/clawdmeter/layout_classic.yaml.
+  clawd_layout: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/layout_${design}.yaml
 
   # Burn rate 5m — COMPUTED on the ESP from raw usage %, exposed as a device
   # sensor (ESPHome dashboard), not drawn on the display.
@@ -211,30 +210,23 @@ packages:
   #   vars:
   #     uid: clawd_pf
 
-  # Stats panel — the on-display BOTTOM half: session / weekly / extra-usage /
-  # time-till-100% bars + a 5m/30m burn line. Pulls the four percentages and the
-  # credits from HA, and reads every derived time value from the backend
-  # packages above BY ID. Placed rows 2-3, full width, below the creature.
-  clawd_stats: !include
-    file: esphome-modular-lvgl-buttons/ui/clawdmeter/stats_panel.yaml
+  # Charts page (page 2) — design-agnostic usage/credits history graphs. Owns its
+  # own HA sensors + history globals + render script + sampler; reads the top-level
+  # ha_* + chart_sample_min substitutions. Always present; View-Mode cycles to it.
+  clawd_charts: !include esphome-modular-lvgl-buttons/ui/clawdmeter/charts_page.yaml
+
+  # View-Mode — runtime page cycling between the stats page (page 1) and the
+  # charts page. Exposes a HA select (Show Stats / Show Graph / auto-alternate)
+  # plus an "alternate seconds" number. GUARDED: only include this when
+  # clawd_charts above is present (it needs a 2nd page to cycle to). The t_view_*
+  # entity-name/option strings come from the active lang pack (top-level subs).
+  clawd_view_mode: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/view_mode.yaml
     vars:
-      uid: clawd_stats
-      row: 2
-      column: 0
-      row_span: 2
-      column_span: 4
-      side_margin: 28   # even left+right gap to the screen edges (portrait)
-      show_runway: "true"   # draw the on-display runway verdict line (local display)
-      session_entity: $ha_session_usage
-      weekly_entity: $ha_week_usage
-      extra_entity: $ha_extra_usage
-      credits_entity: $ha_extra_credits
-      session_clock_id: clawd_reset_reset_clock
-      session_resetin_id: clawd_reset_reset_in_min
-      weekly_clock_id: clawd_wreset_reset_clock
-      ttl_eta_id: clawd_ttl_eta_clock
-      burn5_id: clawd_burn5_rate
-      burn30_id: clawd_burn30_rate
+      uid: clawd_view
+      stats_page_id: main_page
+      charts_page_id: clawd_charts
+      alt_seconds_default: "10"
 
   # Animation picker — HA select + current-clip text sensor. BACKEND ONLY: it
   # exposes the picker as device entities and draws nothing on the display.
