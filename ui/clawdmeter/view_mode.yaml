@@ -1,0 +1,36 @@
+# view_mode.yaml — runtime page cycling between stats (page 1) and charts.
+# Guarded: only include this when charts_page.yaml is also included.
+# Build the alternation from a 1s interval + counter (ESPHome `interval`
+# period is compile-time fixed; alt_seconds must be runtime-adjustable).
+select:
+  - platform: template
+    name: ${t_view_mode_name | default("View Mode")}
+    id: ${uid}_view_mode
+    optimistic: true
+    restore_value: true
+    options:
+      - ${t_view_show_stats | default("Show Stats")}
+      - ${t_view_show_graph | default("Show Graph")}
+      - ${t_view_alternate | default("Wechsel")}
+    initial_option: ${t_view_show_stats | default("Show Stats")}
+    # on_value re-enabled in Task 3.2 once ${uid}_apply_view script exists.
+    # on_value:
+    #   - script.execute: ${uid}_apply_view
+
+number:
+  - platform: template
+    name: ${t_view_alt_seconds_name | default("Alternate Seconds")}
+    id: ${uid}_alt_seconds
+    optimistic: true
+    restore_value: true
+    min_value: 3
+    max_value: 300
+    step: 1
+    initial_value: ${alt_seconds_default | default("10")}
+    unit_of_measurement: "s"
+
+globals:
+  - id: ${uid}_alt_tick
+    type: int
+    restore_value: no
+    initial_value: "0"
