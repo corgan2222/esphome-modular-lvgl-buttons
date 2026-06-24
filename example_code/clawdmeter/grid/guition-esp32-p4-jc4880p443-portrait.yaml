@@ -46,6 +46,11 @@ substitutions:
   #      modern = dark card layout. Selects ui/clawdmeter/layout_${design}.yaml.
   design: classic   # classic | modern
 
+  # ---- Charts page sampler cadence (minutes). The clawd_charts page snapshots
+  #      the HA usage/credits values into its history ring every N minutes
+  #      (90-sample cap ~= 12h at the default). Lower = denser graph, faster fill.
+  chart_sample_min: "8"
+
   icon_font: mdi_icons_40
   text_font: nunito_20
   text_color: white
@@ -204,6 +209,11 @@ packages:
   #   file: esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame_debug.yaml
   #   vars:
   #     uid: clawd_pf
+
+  # Charts page (page 2) — design-agnostic usage/credits history graphs. Owns its
+  # own HA sensors + history globals + render script + sampler; reads the top-level
+  # ha_* + chart_sample_min substitutions. Always present; View-Mode cycles to it.
+  clawd_charts: !include esphome-modular-lvgl-buttons/ui/clawdmeter/charts_page.yaml
 
   # Animation picker — HA select + current-clip text sensor. BACKEND ONLY: it
   # exposes the picker as device entities and draws nothing on the display.

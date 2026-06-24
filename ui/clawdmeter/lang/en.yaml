@@ -96,3 +96,12 @@ substitutions:
   t_modern_reset_fmt:    'Reset %s'
   t_modern_eta_fmt:      'ETA %s'
   t_modern_credits_fmt:  '%.1f cr'
+
+  # ---- charts page (charts_page.yaml) ----
+  # Plain LVGL label strings (no printf placeholders). Leading/trailing spaces are
+  # intentional padding before the colored legend dots — keep them inside the quotes.
+  t_charts_title:           'Claude Usage'
+  t_charts_legend_session:  ' Session usage   '
+  t_charts_legend_weekly:   ' Weekly usage'
+  t_charts_legend_credits:  ' Extra Usage Credits'
+  t_charts_legend_limit:    ' Extra Usage Limit 20.0 credits'
