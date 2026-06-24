@@ -51,14 +51,33 @@ sensor:
     id: clawd_charts_session
     entity_id: ${ha_session_usage}
     internal: true
+    # Drive the header band's live readout (event-driven, no polling interval).
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: clawd_ch_hdr_session
+            text: !lambda 'return to_string((int) x) + "%";'
   - platform: homeassistant
     id: clawd_charts_weekly
     entity_id: ${ha_week_usage}
     internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: clawd_ch_hdr_weekly
+            text: !lambda 'return to_string((int) x) + "%";'
   - platform: homeassistant
     id: clawd_charts_credits
     entity_id: ${ha_extra_credits}
     internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: clawd_ch_hdr_credits
+            text: !lambda |-
+              char b[16];
+              snprintf(b, sizeof(b), "${t_modern_credits_fmt | default("%.1f cr")}", x);
+              return std::string(b);
 
 lvgl:
   pages:
@@ -67,7 +86,11 @@ lvgl:
       bg_opa: COVER
       pad_all: 0
       widgets:
-        # ---- top frame (placeholder header band, mirrors the page-1 GIF frame)
+        # ---- top header band (mirrors the page-1 GIF frame) ----
+        # Filled with a live current-values summary (Session / Weekly / Extra)
+        # instead of an empty bordered box. Captions reuse the modern-layout i18n
+        # tokens; the three values are written event-driven by the sensors'
+        # on_value handlers above. ASCII "--" placeholder until the first HA value.
         - obj:
             id: clawd_charts_gif
             x: 60
@@ -80,6 +103,49 @@ lvgl:
             bg_color: black
             bg_opa: COVER
             pad_all: 0
+            widgets:
+              - label:
+                  text: ${t_modern_session | default("Session")}
+                  x: 18
+                  y: 22
+                  text_font: nunito_24
+                  text_color: misty_blue
+              - label:
+                  id: clawd_ch_hdr_session
+                  text: "--"
+                  align: TOP_RIGHT
+                  x: -18
+                  y: 14
+                  text_font: nunito_36
+                  text_color: white
+              - label:
+                  text: ${t_modern_weekly | default("Weekly")}
+                  x: 18
+                  y: 90
+                  text_font: nunito_24
+                  text_color: misty_blue
+              - label:
+                  id: clawd_ch_hdr_weekly
+                  text: "--"
+                  align: TOP_RIGHT
+                  x: -18
+                  y: 82
+                  text_font: nunito_36
+                  text_color: white
+              - label:
+                  text: ${t_modern_extra | default("Extra")}
+                  x: 18
+                  y: 158
+                  text_font: nunito_24
+                  text_color: misty_blue
+              - label:
+                  id: clawd_ch_hdr_credits
+                  text: "--"
+                  align: TOP_RIGHT
+                  x: -18
+                  y: 150
+                  text_font: nunito_36
+                  text_color: white
 
         # ================= Chart 1: usage (0..100%) =================
         - label:

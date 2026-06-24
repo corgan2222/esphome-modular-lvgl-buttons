@@ -93,6 +93,26 @@ interval:
             id(clawd_hist_credits).push_back(18.0f * ph * ph);
           }
       - script.execute: clawd_charts_render
+      # SDL has no HA, so the page's sensor on_value handlers never fire — drive
+      # the header band's live readout from the synthetic buffers so the preview
+      # shows realistic (worst-case wide) values for the overlap/appearance check.
+      - if:
+          condition:
+            lambda: 'return std::string("${sim_feed}") == "1";'
+          then:
+            - lvgl.label.update:
+                id: clawd_ch_hdr_session
+                text: !lambda 'return id(clawd_hist_session).empty() ? std::string("--") : (to_string((int) id(clawd_hist_session).back()) + "%");'
+            - lvgl.label.update:
+                id: clawd_ch_hdr_weekly
+                text: !lambda 'return id(clawd_hist_weekly).empty() ? std::string("--") : (to_string((int) id(clawd_hist_weekly).back()) + "%");'
+            - lvgl.label.update:
+                id: clawd_ch_hdr_credits
+                text: !lambda |-
+                  if (id(clawd_hist_credits).empty()) return std::string("--");
+                  char b[16];
+                  snprintf(b, sizeof(b), "%.1f cr", id(clawd_hist_credits).back());
+                  return std::string(b);
 
 packages:
   theme:    !include esphome-modular-lvgl-buttons/common/theme/index.yaml
