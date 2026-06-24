@@ -44,7 +44,7 @@ substitutions:
 
   # ---- Page-1 design (compile-time): classic = creature + stats panel,
   #      modern = dark card layout. Selects ui/clawdmeter/layout_${design}.yaml.
-  design: classic   # classic | modern
+  design: modern   # classic | modern
 
   # ---- Charts page sampler cadence (minutes). The clawd_charts page snapshots
   #      the HA usage/credits values into its history ring every N minutes
