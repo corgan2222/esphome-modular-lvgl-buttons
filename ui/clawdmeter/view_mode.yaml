@@ -13,9 +13,8 @@ select:
       - ${t_view_show_graph | default("Show Graph")}
       - ${t_view_alternate | default("Wechsel")}
     initial_option: ${t_view_show_stats | default("Show Stats")}
-    # on_value re-enabled in Task 3.2 once ${uid}_apply_view script exists.
-    # on_value:
-    #   - script.execute: ${uid}_apply_view
+    on_value:
+      - script.execute: ${uid}_apply_view
 
 number:
   - platform: template
@@ -34,3 +33,51 @@ globals:
     type: int
     restore_value: no
     initial_value: "0"
+  # Tracks which of the two cycle pages the alternation last showed, so the
+  # toggle is an explicit 2-target flip (stats <-> charts) via lvgl.page.show
+  # rather than lvgl.page.next: this config has a 3rd LVGL page (info_screen,
+  # reachable by swipe), so page.next would surface it during auto-cycle.
+  - id: ${uid}_alt_on_charts
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+script:
+  - id: ${uid}_apply_view
+    then:
+      - lambda: 'id(${uid}_alt_tick) = 0;'
+      - if:
+          condition:
+            lambda: 'return id(${uid}_view_mode).state == "${t_view_show_graph | default("Show Graph")}";'
+          then:
+            - lvgl.page.show: ${charts_page_id | default("clawd_charts")}
+      - if:
+          condition:
+            lambda: 'return id(${uid}_view_mode).state == "${t_view_show_stats | default("Show Stats")}";'
+          then:
+            - lvgl.page.show: ${stats_page_id | default("main_page")}
+
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(${uid}_view_mode).state == "${t_view_alternate | default("Wechsel")}";'
+          then:
+            - lambda: 'id(${uid}_alt_tick) += 1;'
+            - if:
+                condition:
+                  lambda: 'return id(${uid}_alt_tick) >= (int) id(${uid}_alt_seconds).state;'
+                then:
+                  # explicit 2-target toggle (NOT lvgl.page.next: info_screen
+                  # is a 3rd page that page.next would cycle into).
+                  - lambda: |-
+                      id(${uid}_alt_tick) = 0;
+                      id(${uid}_alt_on_charts) = !id(${uid}_alt_on_charts);
+                  - if:
+                      condition:
+                        lambda: 'return id(${uid}_alt_on_charts);'
+                      then:
+                        - lvgl.page.show: ${charts_page_id | default("clawd_charts")}
+                      else:
+                        - lvgl.page.show: ${stats_page_id | default("main_page")}
