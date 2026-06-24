@@ -1,0 +1,110 @@
+# Reusable SDL test harness — CHARTS page 2 (PORTRAIT 480x800).
+#
+# Previews ui/clawdmeter/charts_page.yaml (the line-graph history page) on the
+# desktop without touching gp.yaml or any device config. Unlike the page-1
+# harnesses (sdl_grid_portrait / sdl_modern), charts_page is SELF-CONTAINED: it
+# declares its own HA sensors, history globals, render script and sampler, so
+# this harness needs NO clawd engine / creature / stats / runway wiring — just
+# the SDL display + theme + the page include.
+#
+#   substitutions: design is irrelevant here (page 2 is design-agnostic)
+#   clawd_charts: !include charts_page.yaml   (adds the clawd_charts page)
+#
+# on_boot shows the clawd_charts page directly (there is no page-1 here, only a
+# dummy main_page so lvgl: has a default).
+#
+# The buffers are normally filled once every chart_sample_min minutes (default
+# 8) — far too slow for a screenshot. So with sim_feed=="1" a fast 1s interval
+# REBUILDS all three history buffers from a synthetic growing waveform and calls
+# clawd_charts_render, making the curves appear immediately and extend leftward
+# from the right edge as the (simulated) history fills. With sim_feed=="0" the
+# buffers stay empty and the page renders the expected empty-at-boot state.
+#
+# Screen size override: -s screen_width 480 -s screen_height 800
+# Synthetic data: -s sim_feed 1  (see run_data.sh)
+
+external_components:
+  - source: github://pr#12312
+    components: [font, image, lvgl]
+    refresh: 1h
+
+substitutions:
+  ha_session_usage: "sensor.session_usage"
+  ha_week_usage:    "sensor.week_usage"
+  ha_extra_credits: "sensor.extra_usage_credits"
+
+  # charts_page reads these via defaults; left here so the page's substitution
+  # refs resolve even though no lang pack is included in this harness.
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+
+  screen_width: '480'
+  screen_height: '800'
+
+  # Sampling cadence (minutes) — the page's own sampler. Irrelevant for the SDL
+  # screenshot (the sim feed below drives the buffers directly), kept so the
+  # page's ${chart_sample_min} ref resolves.
+  chart_sample_min: "8"
+
+  # Synthetic data feed for SDL screenshots: "0" = off (buffers empty, page
+  # renders the empty-at-boot state), "1" = on (fast growing waveform so every
+  # series shows a real curve). Enable per-run with `-s sim_feed 1`.
+  sim_feed: "0"
+
+esphome:
+  name: clawdmeter-sdl
+  friendly_name: Clawdmeter SDL
+  on_boot:
+    - priority: -200
+      then:
+        - lvgl.page.show: clawd_charts
+
+logger:
+  level: info
+
+api:
+
+# NOTE: no `image:` block here on purpose. The charts page uses zero images, so
+# defining the esphome `image:` component would set USE_IMAGE while LVGL's
+# LV_USE_IMAGE stays off (no LVGL image widget anywhere) — that mismatch makes
+# lvgl_esphome.h's `#ifdef USE_IMAGE` lv_image_set_src overload fail to compile
+# on the host build. Page-1 harnesses avoid this only because the creature GIF
+# is a real LVGL image widget. Keep this harness image-free.
+
+# Fast synthetic feed (opt-in via sim_feed=="1"). Rebuilds the three history
+# buffers each second from a deterministic millis()-driven waveform whose length
+# grows over time (so it looks like the chart is filling), then re-renders.
+# No-op when sim_feed=="0".
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          if (std::string("${sim_feed}") != "1") return;
+          int n = (int)(millis() / 300) + 2;   // grows ~3.3 samples/s, caps at 90
+          if (n > 90) n = 90;
+          id(clawd_hist_session).clear();
+          id(clawd_hist_weekly).clear();
+          id(clawd_hist_credits).clear();
+          for (int i = 0; i < n; i++) {
+            float ph = (n > 1) ? (float)i / (float)(n - 1) : 0.0f;
+            id(clawd_hist_session).push_back(15.0f + 70.0f * ph + 8.0f * sinf(ph * 12.0f));
+            id(clawd_hist_weekly).push_back(25.0f + 55.0f * ph);
+            id(clawd_hist_credits).push_back(18.0f * ph * ph);
+          }
+      - script.execute: clawd_charts_render
+
+packages:
+  theme:    !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  hardware: !include esphome-modular-lvgl-buttons/hardware/SDL-lvgl.yaml
+
+  # ---- The page under test ----
+  clawd_charts: !include esphome-modular-lvgl-buttons/ui/clawdmeter/charts_page.yaml
+
+lvgl:
+  pages:
+    - id: main_page
+      layout: 4x4
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []
