@@ -108,3 +108,14 @@ substitutions:
   t_charts_legend_weekly:   ' Uso semanal'
   t_charts_legend_credits:  ' Créditos extra'
   t_charts_legend_limit:    ' Límite extra 20.0 cr'
+
+  # ---- view-mode (view_mode.yaml) ----
+  # t_view_mode_name / t_view_alt_seconds_name son nombres de entidad HA; los tres
+  # t_view_show_*/t_view_alternate son las OPCIONES del select (también comparadas
+  # en los lambdas apply_view/interval). restore_value guarda la opción elegida,
+  # así que mantén estos tokens de opción ESTABLES por idioma.
+  t_view_mode_name:        'Modo vista'
+  t_view_show_stats:       'Estadísticas'
+  t_view_show_graph:       'Gráfico'
+  t_view_alternate:        'Alternar'
+  t_view_alt_seconds_name: 'Segundos cambio'

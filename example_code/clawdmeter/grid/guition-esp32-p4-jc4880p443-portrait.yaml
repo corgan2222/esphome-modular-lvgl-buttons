@@ -215,6 +215,19 @@ packages:
   # ha_* + chart_sample_min substitutions. Always present; View-Mode cycles to it.
   clawd_charts: !include esphome-modular-lvgl-buttons/ui/clawdmeter/charts_page.yaml
 
+  # View-Mode — runtime page cycling between the stats page (page 1) and the
+  # charts page. Exposes a HA select (Show Stats / Show Graph / auto-alternate)
+  # plus an "alternate seconds" number. GUARDED: only include this when
+  # clawd_charts above is present (it needs a 2nd page to cycle to). The t_view_*
+  # entity-name/option strings come from the active lang pack (top-level subs).
+  clawd_view_mode: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/view_mode.yaml
+    vars:
+      uid: clawd_view
+      stats_page_id: main_page
+      charts_page_id: clawd_charts
+      alt_seconds_default: "10"
+
   # Animation picker — HA select + current-clip text sensor. BACKEND ONLY: it
   # exposes the picker as device entities and draws nothing on the display.
   clawd_anim: !include
