@@ -11,7 +11,7 @@ select:
     options:
       - ${t_view_show_stats | default("Show Stats")}
       - ${t_view_show_graph | default("Show Graph")}
-      - ${t_view_alternate | default("Wechsel")}
+      - ${t_view_alternate | default("Alternate")}
     initial_option: ${t_view_show_stats | default("Show Stats")}
     on_value:
       - script.execute: ${uid}_apply_view
@@ -62,7 +62,7 @@ interval:
     then:
       - if:
           condition:
-            lambda: 'return id(${uid}_view_mode).state == "${t_view_alternate | default("Wechsel")}";'
+            lambda: 'return id(${uid}_view_mode).state == "${t_view_alternate | default("Alternate")}";'
           then:
             - lambda: 'id(${uid}_alt_tick) += 1;'
             - if:

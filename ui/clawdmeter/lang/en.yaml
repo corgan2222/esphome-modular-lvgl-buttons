@@ -114,5 +114,5 @@ substitutions:
   t_view_mode_name:        'View Mode'
   t_view_show_stats:       'Show Stats'
   t_view_show_graph:       'Show Graph'
-  t_view_alternate:        'Wechsel'
+  t_view_alternate:        'Alternate'
   t_view_alt_seconds_name: 'Alternate Seconds'
