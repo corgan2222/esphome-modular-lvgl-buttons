@@ -1,0 +1,232 @@
+# esphome-modular-lvgl-buttons/example_code/clawdmeter/grid/guition-esp32-s3-4848s040-modern.yaml
+#
+# MODERN page-1 design (dark card layout) on Guition ESP32-S3 4848S040, 480x480
+# square. Sibling of the classic grid config guition-esp32-s3-4848s040.yaml (same
+# board, creature + stats panel) — identical Clawdmeter backend, but page 1 is the
+# modern card layout instead.
+#
+# The page-1 widgets are NOT listed here: the compile-time `design:` switch
+# (substitutions, below) pulls them from ui/clawdmeter/layout_${design}.yaml
+# (here: layout_modern_square.yaml), which owns its own creature root, the
+# clawd_init on_boot and its clawd_m_* hero/card sensors. Everything else — burn
+# rate (5m/30m), time-to-100%, reset clocks, runway, charts, view-mode and the
+# animation picker — is computed on the ESP from the raw HA inputs and exposed as
+# backend device entities, exactly like the other grid configs.
+#
+# To adapt to your own Home Assistant: edit ONLY the ha_* block in substitutions
+# below. Never edit anything under ui/.
+#
+# Target: Guition ESP32-S3 4848S040 (480x480 square panel, rotation 180). If the
+# image is upside down for how your panel is mounted, set rotation "0".
+
+substitutions:
+  # ======================================================================
+  #  HOME ASSISTANT DATA SOURCE — edit ONLY this block to adapt to your HA.
+  # ----------------------------------------------------------------------
+  #  These are the raw Home Assistant entities the Clawdmeter reads. They
+  #  are the ONLY thing you need to change for your own setup — every
+  #  ui/clawdmeter/* file receives them from here via `vars:`, so you never
+  #  have to (and should never) edit anything under ui/. Replace the entity
+  #  ids below with the ones from your own "Claude Usage" device.
+  # ======================================================================
+  ha_session_usage: "sensor.claude_usage_stefan_pro_session_usage"        # session limit used, %
+  ha_week_usage:    "sensor.claude_usage_stefan_pro_week_usage"           # weekly limit used, %
+  ha_extra_usage:   "sensor.claude_usage_stefan_pro_extra_usage"          # extra usage, % (may be disabled in HA)
+  ha_extra_credits: "sensor.claude_usage_stefan_pro_extra_usage_credits"  # extra usage, credits
+  ha_session_reset: "sensor.claude_usage_stefan_pro_session_reset_time"   # session reset, timestamp
+  ha_weekly_reset:  "sensor.claude_usage_stefan_pro_weekly_reset_time"    # weekly reset, timestamp
+
+  # ---- Page-1 design (compile-time): classic = creature + stats panel,
+  #      modern* = dark card layout. Selects ui/clawdmeter/layout_${design}.yaml.
+  design: modern_square   # classic | modern | modern_landscape | modern_square | modern_720 | modern_1280 | modern_720x1280 | modern_320x480 | modern_480x272 | modern_320x240
+
+  # ---- Charts page sampler cadence (minutes). The clawd_charts page snapshots
+  #      the HA usage/credits values into its history ring every N minutes
+  #      (90-sample cap ~= 12h at the default). Lower = denser graph, faster fill.
+  chart_sample_min: "8"
+
+  icon_font: mdi_icons_40
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+esphome:
+  name: "clawdmeter-4848-modern"
+  friendly_name: "Clawdmeter 4848 Modern"
+  comment: "Clawdmeter modern card layout on Guition ESP32-S3 4848S040 (square)"
+
+logger:
+  level: debug
+  logs:
+    lvgl: info
+  hardware_uart: UART0
+
+image:
+  defaults:
+    byte_order: little_endian
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+packages:
+  wifi:    !include esphome-modular-lvgl-buttons/common/wifi.yaml
+  ota_screen: !include esphome-modular-lvgl-buttons/common/ota.yaml
+  sensors: !include esphome-modular-lvgl-buttons/common/sensors_base.yaml
+  theme:   !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  backlight: !include esphome-modular-lvgl-buttons/common/backlight_time.yaml
+  hardware: !include
+    file: esphome-modular-lvgl-buttons/hardware/guition-esp32-s3-4848s040.yaml
+    vars:
+      rotation: "180"
+  loading_screen: !include esphome-modular-lvgl-buttons/pages/loading.yaml
+  info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+
+  # ---- Language pack ----
+  # Compile-time locale: provides every t_* substitution the ui/clawdmeter/* files
+  # and the name overrides below reference. Swap to lang/de.yaml, lang/fr.yaml or
+  # lang/es.yaml (or omit entirely, English is the built-in default) for another
+  # language. Exactly ONE pack.
+  clawd_lang: !include esphome-modular-lvgl-buttons/ui/clawdmeter/lang/en.yaml
+
+  # ---- Clawdmeter, assembled from individual tiles ----
+  # Shared engine — include ONCE. Pulls in the animation engine + sprite data and
+  # runs the frame driver; every clawd_* function becomes available afterwards.
+  clawd_engine: !include esphome-modular-lvgl-buttons/ui/clawdmeter/engine.yaml
+
+  # Page-1 layout (compile-time switch via `design:`) — `classic` pulls in the
+  # creature + stats panel; `modern*` the dark card layout. The creature/card
+  # package vars live inside ui/clawdmeter/layout_${design}.yaml.
+  clawd_layout: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/layout_${design}.yaml
+
+  # Burn rate 5m — COMPUTED on the ESP from raw usage %, exposed as a device
+  # sensor (ESPHome dashboard), not drawn on the display.
+  clawd_burn5: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+    vars:
+      uid: clawd_burn5
+      name: ${t_name_burn5 | default("Burn Rate 5m")}
+      window_min: 5
+      source_entity: $ha_session_usage
+
+  # Burn rate 30m — same, also feeds the time-to-100% calc below.
+  clawd_burn30: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+    vars:
+      uid: clawd_burn30
+      name: ${t_name_burn30 | default("Burn Rate 30m")}
+      window_min: 30
+      source_entity: $ha_session_usage
+
+  # Time-to-100% — COMPUTED on the ESP from raw usage % + the 30m burn rate
+  # (exactly like the HA template), exposed as a device text sensor.
+  clawd_ttl: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/time_to_100.yaml
+    vars:
+      uid: clawd_ttl
+      rate_id: clawd_burn30_rate
+      source_entity: $ha_session_usage
+      name: ${t_name_ttl | default("Session Time To 100")}
+      eta_name: ${t_name_eta | default("Session 100% At")}
+
+  # Absolute SESSION-reset wall-clock time ("HH:MM") + "reset in xx m", derived
+  # on the ESP from the raw reset-time timestamp and the device timezone.
+  clawd_reset: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
+    vars:
+      uid: clawd_reset
+      source_entity: $ha_session_reset
+      name: ${t_name_session_reset_time | default("Session Reset Time")}
+      reset_in_name: ${t_name_session_reset_in | default("Session Reset In")}
+
+  # Absolute WEEKLY-reset wall-clock time ("HH:MM"), same compute, fed from the
+  # weekly reset-time timestamp. The "reset in" sensor it also emits is unused.
+  clawd_wreset: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
+    vars:
+      uid: clawd_wreset
+      source_entity: $ha_weekly_reset
+      name: ${t_name_weekly_reset_time | default("Weekly Reset Time")}
+      reset_in_name: ${t_name_weekly_reset_in | default("Weekly Reset In")}
+
+  # Runway — COMPUTED on the ESP: compares "time until session reset" against
+  # "time until the limit is hit at the current 30m burn rate" and emits a verdict
+  # ("No · Nm to spare" / "Yes · Nm early" / "No") + a pace ratio. Exposed as device
+  # entities; the modern "Will hit limit" card draws the verdict from its own ids.
+  clawd_rw: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/runway.yaml
+    vars:
+      uid: clawd_rw
+      rate_id: clawd_burn30_rate
+      resetin_id: clawd_reset_reset_in_min
+      source_entity: $ha_session_usage
+      name: ${t_name_runway | default("Session Runway")}
+      ratio_name: ${t_name_runway_ratio | default("Session Runway Pace")}
+
+  # Pace frame (Option A, OPTIONAL) — colours a thin border on the creature's
+  # OUTER TILE from the runway pace ratio (clawd_rw_runway_ratio): no value -> no
+  # border, < 0.90 green, < 1.00 orange, >= 1.00 red. Pure YAML (no engine change);
+  # frames the creature's outer tile. Mute in place via enabled "false".
+  #
+  # show_from = lowest band that draws at all: "green" (default, all bands) |
+  # "orange" (hide the calm green frame, warn from orange up) | "red" (only at/
+  # over the limit). Orange/red additionally BREATHE (opacity pulse). The
+  # HA-exposed switch "Pace Frame" (clawd_pf_pace_breathe_sw) is a whole-frame
+  # visibility master: ON shows the frame (orange/red breathe, green solid),
+  # OFF hides it entirely. Toggle it live from HA without a reflash.
+  clawd_pace_frame: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame.yaml
+    vars:
+      uid: clawd_pf
+      ratio_id: clawd_rw_runway_ratio
+      target_id: clawd_c_creature_root
+      enabled: "true"
+      width: "3"
+      show_from: "orange"   # "green" = show all bands | "orange" = warn from orange up | "red" = only over-limit
+
+  # Charts page (page 2) — design-agnostic usage/credits history graphs. Owns its
+  # own HA sensors + history globals + render script + sampler; reads the top-level
+  # ha_* + chart_sample_min substitutions. Always present; View-Mode cycles to it.
+  clawd_charts: !include esphome-modular-lvgl-buttons/ui/clawdmeter/charts_page.yaml
+
+  # View-Mode — runtime page cycling between the stats page (page 1) and the
+  # charts page. Exposes a HA select (Show Stats / Show Graph / auto-alternate)
+  # plus an "alternate seconds" number. GUARDED: only include this when
+  # clawd_charts above is present (it needs a 2nd page to cycle to). The t_view_*
+  # entity-name/option strings come from the active lang pack (top-level subs).
+  clawd_view_mode: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/view_mode.yaml
+    vars:
+      uid: clawd_view
+      stats_page_id: main_page
+      charts_page_id: clawd_charts
+      alt_seconds_default: "10"
+
+  # Animation picker — HA select + current-clip text sensor. BACKEND ONLY: it
+  # exposes the picker as device entities and draws nothing on the display.
+  clawd_anim: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/anim_select.yaml
+    vars:
+      uid: clawd_anim
+      select_name: ${t_name_animation | default("Animation")}
+      current_name: ${t_name_current_anim | default("Current Animation")}
+      group_name: ${t_name_usage_group | default("Usage Group")}
+      rate_name: ${t_name_usage_rate | default("Usage Rate")}
+      diag_name: ${t_name_usage_diag | default("Usage Diag")}
+
+lvgl:
+  pages:
+    - id: main_page
+      layout: 4x4   # 4 rows x 4 columns; tiles place themselves via grid_cell_*
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []

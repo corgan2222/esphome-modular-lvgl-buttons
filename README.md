@@ -18,7 +18,7 @@ This is a fork. Lineage and what each layer adds:
 |---|---|---|
 | **Base** | [agillis/esphome-modular-lvgl-buttons](https://github.com/agillis/esphome-modular-lvgl-buttons) | The modular tile library: light, switch, sensor, binary_sensor, text_sensor, button, sensor_button, climate + the flip-clock / weather / solar / tides feature modules. |
 | **+ Derek's features** | [derekmcauley7/esphome-modular-lvgl-buttons](https://github.com/derekmcauley7/esphome-modular-lvgl-buttons) | **`media_player`** entity (remote-only): transport controls, volume, progress bar, full-screen detail page, optional PIN lock. |
-| **+ This fork** | you are here | **🐾 [Clawdmeter](#-clawdmeter)** — animated Claude-usage display · **🌍 4-language i18n** (en/de/fr/es) for Clawdmeter · **🛫 Runway** burn-vs-reset projection · **🖼 Pace frame** colour-coded breathing runway border (grid layouts). Bumped to ESPHome **2026.6.0**. |
+| **+ This fork** | you are here | **🐾 [Clawdmeter](#-clawdmeter)** — animated Claude-usage display · **🌍 4-language i18n** (en/de/fr/es) for Clawdmeter · **🛫 Runway** burn-vs-reset projection · **🖼 Pace frame** colour-coded breathing runway border (grid layouts) · **🎨 Modern multi-format layouts** (`classic`/`modern` page-1 look, nine pixel-tuned resolutions). Bumped to ESPHome **2026.6.0**. |
 
 So everything in the base library **and** Derek's `media_player` is included here —
 this fork only **adds** the Clawdmeter stack on top.
@@ -31,6 +31,11 @@ draws session / weekly / extra usage bars, burn rate, time-to-100 %, reset
 clocks and a "Runway" verdict. On the modular grid layouts the creature tile can
 also wear a colour-coded, breathing **pace frame** that turns the Runway pace
 into a green → orange → red status border.
+
+<p align="center">
+  <img src="example_code/clawdmeter/sdl_tests/screenshots/modern-data.png" width="240" alt="Clawdmeter — Modern Dark layout (480×800)"><br>
+  <sub><i>The "Modern Dark" layout (480×800) — one of nine pixel-tuned modern formats. SDL preview render.</i></sub>
+</p>
 
 > **Data source required.** The Clawdmeter reads usage from **Home Assistant
 > sensors** — it does not scrape Claude itself. You need a producer for those
@@ -46,6 +51,11 @@ into a green → orange → red status border.
   resolution-agnostic, five HA entities) or a **modular grid** of tiles (full
   metric set + Runway line + pace frame). See the
   [comparison](ui/clawdmeter/README.md#all-in-one-vs-modular-grid).
+- 🎨 **Two looks, nine formats:** a `classic` creature-and-panel layout or the
+  **`modern`** dark-card design — the latter pixel-tuned for **320×240, 320×480,
+  480×272, 480×480, 480×800, 720×720, 720×1280, 800×480 and 800×1280** (the
+  320×240 a compact reduced variant) — picked with a single `design:`
+  substitution. See [Designs and multi-format layouts](ui/clawdmeter/README.md#designs-and-multi-format-layouts).
 - 🚀 Ready-to-flash examples in
   [`example_code/clawdmeter/`](example_code/clawdmeter/) — sorted into
   [`all-in-one/`](example_code/clawdmeter/all-in-one/) and

@@ -28,11 +28,13 @@ and flash:
 | Example | Layout |
 |---|---|
 | [`grid/…-jc4880p443.yaml`](../../example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443.yaml) | Modular grid tiles, **landscape** (creature left, stats right) — incl. the [pace frame](#pace-frame-pace_frameyaml) |
-| [`grid/…-jc4880p443-portrait.yaml`](../../example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443-portrait.yaml) | Modular grid tiles, **portrait** (creature top, stats below) — incl. the [pace frame](#pace-frame-pace_frameyaml) |
+| [`grid/…-jc4880p443-portrait.yaml`](../../example_code/clawdmeter/grid/guition-esp32-p4-jc4880p443-portrait.yaml) | Modular grid tiles, **portrait** (creature top, stats below), `design: modern` — **the live device**. Incl. the [pace frame](#pace-frame-pace_frameyaml) |
 | [`all-in-one/…-jc4880p443.yaml`](../../example_code/clawdmeter/all-in-one/guition-esp32-p4-jc4880p443.yaml) | All-in-one full-screen `remote.yaml` |
 
-See [Usage](#usage) for the minimal include, and [Data flow](#data-flow) for how
-the pieces fit together.
+See [Usage](#usage) for the minimal include, [Designs and multi-format
+layouts](#designs-and-multi-format-layouts) for the `classic`/`modern` page-1
+looks and the nine modern formats, and [Data flow](#data-flow) for how the
+pieces fit together.
 
 ## All-in-one vs. modular grid
 
@@ -52,6 +54,73 @@ little you wire* and *how much it computes and shows*.
 The Runway line and the pace frame ship **only** on the grid builds — the
 all-in-one layout doesn't compute a pace ratio. The live device is the
 grid-portrait example.
+
+## Designs and multi-format layouts
+
+The grid build's **page-1 look** is chosen at **compile time** by a single
+`design:` substitution in the device config — the build pulls the matching
+layout file via a dynamic include:
+
+```yaml
+substitutions:
+  design: modern   # classic | modern | modern_landscape | modern_square | modern_720 | modern_1280 | modern_320x240 | modern_320x480 | modern_480x272 | modern_720x1280
+
+packages:
+  clawd_layout: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/layout_${design}.yaml
+```
+
+Two design families:
+
+- **`classic`** (`layout_classic.yaml`) — the original creature-on-top,
+  stats-panel-below look described above.
+- **`modern`** — a dark "card" redesign that ships in **nine pixel-tuned
+  formats**, one layout file per resolution/orientation. They are deliberately
+  **not** responsive: each file is hand-tuned for its format, but all carry the
+  **same widget IDs and the same refresh contract**, so the engine, sensors and
+  scripts are identical across formats — only the geometry differs. The smallest
+  format (320×240) is a **compact reduced** variant — it drops the weekly/extra
+  rows that won't fit and shows the core session card set.
+
+| `design:` value | Layout file | Resolution | Example board (shipped config) |
+|---|---|---|---|
+| `modern` | `layout_modern.yaml` | 480×800 portrait | Guition ESP32-P4 JC4880P443 (portrait) — **the live device** |
+| `modern_landscape` | `layout_modern_landscape.yaml` | 800×480 landscape | Guition ESP32-P4 JC4880P443 (landscape) |
+| `modern_square` | `layout_modern_square.yaml` | 480×480 square | Guition ESP32-S3-4848S040 |
+| `modern_720` | `layout_modern_720.yaml` | 720×720 square | Waveshare ESP32-P4-86-Panel |
+| `modern_1280` | `layout_modern_1280.yaml` | 800×1280 portrait | Guition ESP32-P4 JC8012P4A1 |
+| `modern_320x240` | `layout_modern_320x240.yaml` | 320×240 landscape · **compact** | Sunton ESP32-2432S028 |
+| `modern_320x480` | `layout_modern_320x480.yaml` | 320×480 portrait | Guition ESP32-JC8048W535 |
+| `modern_480x272` | `layout_modern_480x272.yaml` | 480×272 landscape | Guition ESP32-JC4827W543 |
+| `modern_720x1280` | `layout_modern_720x1280.yaml` | 720×1280 portrait | Waveshare ESP32-P4 WiFi6 Touch LCD 7 |
+
+All nine formats ship as ready-to-flash grid device configs in
+[`example_code/clawdmeter/grid/`](../../example_code/clawdmeter/grid/) (the
+480×800 portrait is the live device); point any other board's grid config at a
+format by setting `design:`. All nine are rendered headless in the
+[SDL preview](../../example_code/clawdmeter/sdl_tests/) (`sdl_modern*` harnesses)
+on every layout change.
+
+### Modern layouts at a glance
+
+| modern · 480×800 | modern_landscape · 800×480 | modern_square · 480×480 |
+|:---:|:---:|:---:|
+| <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-data.png" width="170" alt="modern 480×800 portrait"> | <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-landscape-data.png" width="300" alt="modern landscape 800×480"> | <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-square-data.png" width="200" alt="modern square 480×480"> |
+
+| modern_720 · 720×720 | modern_1280 · 800×1280 |
+|:---:|:---:|
+| <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-720-data.png" width="240" alt="modern 720×720 square"> | <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-1280-data.png" width="150" alt="modern 800×1280 portrait"> |
+
+| modern_320x240 · 320×240 (compact) | modern_480x272 · 480×272 |
+|:---:|:---:|
+| <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-320x240-data.png" width="220" alt="modern 320×240 landscape, compact"> | <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-480x272-data.png" width="280" alt="modern 480×272 landscape"> |
+
+| modern_320x480 · 320×480 | modern_720x1280 · 720×1280 |
+|:---:|:---:|
+| <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-320x480-data.png" width="130" alt="modern 320×480 portrait"> | <img src="../../example_code/clawdmeter/sdl_tests/screenshots/modern-720x1280-data.png" width="140" alt="modern 720×1280 portrait"> |
+
+> Screenshots are the SDL desktop renders driven by a synthetic usage feed — see
+> [`sdl_tests/`](../../example_code/clawdmeter/sdl_tests/).
 
 ## Data flow
 
@@ -139,6 +208,8 @@ guard right after boot/reset. The full group table is in
 |---|---|
 | `remote.yaml` | The **all-in-one** component: HA sensors, LVGL chrome (canvas + usage bars + labels), animation driver. Include this from a device config. |
 | `engine.yaml`, `creature.yaml`, … (the modular tile packages + `*_tile.yaml` wrappers) and `lang/{en,de,es,fr}.yaml` | The **modular grid** building blocks — one include per tile, placed into grid cells (see the [comparison table](#all-in-one-vs-modular-grid)) — plus the language packs. |
+| `layout_classic.yaml`, `layout_modern*.yaml` | Page-1 **layout** files selected by the `design:` substitution — `classic` (creature + stats panel) and the nine `modern` formats. See [Designs and multi-format layouts](#designs-and-multi-format-layouts). |
+| `charts_page.yaml` | Optional, design-agnostic **charts page** — usage/credits history graphs, sampled every `chart_sample_min` minutes (90-sample ring, ~12 h). |
 | `clawdmeter_engine.h` | Header-only render + usage-rate engine, pulled in via `esphome.includes`. Exposes a small C API. |
 | `splash_animations.h` | Vendored, generated pixel-art animation data (13 animations, 20×20 grid, RGB565 palette). |
 | `tests/test_usage_rate.cpp` | Host (g++) unit test for the usage-rate state machine. |
