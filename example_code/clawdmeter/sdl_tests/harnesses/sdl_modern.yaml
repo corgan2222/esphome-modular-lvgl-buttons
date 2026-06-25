@@ -95,6 +95,10 @@ interval:
           id(clawd_burn5_src).publish_state(sess);
           id(clawd_burn30_src).publish_state(sess);
           id(clawd_ttl_ttl_usage).publish_state(sess);
+          // Feed the runway backend's OWN usage sensor too, otherwise the
+          // "Will hit limit" card stays "unknown"/green on the host (the
+          // runway verdict needs usage + reset_in + burn all present).
+          id(clawd_rw_runway_usage).publish_state(sess);
           id(clawd_m_session_pct).publish_state(sess);
           id(clawd_m_weekly_pct).publish_state(46.0f);
           id(clawd_m_extra_pct).publish_state(12.0f);

@@ -120,13 +120,14 @@ lvgl:
                   id: clawd_m_session_num
                   text: "0"
                   x: 22
-                  y: 338
+                  y: 330
                   text_font: nunito_72
                   text_color: ep_orange
               - label:
+                  id: clawd_m_session_pct_sign
                   text: "%"
-                  x: 120
-                  y: 374
+                  x: 100
+                  y: 366
                   text_font: nunito_36
                   text_color: ep_orange
               - label:
@@ -271,31 +272,30 @@ lvgl:
                   height: 96
                   radius: 16
                   border_width: 1
-                  border_color: crimson
+                  border_color: ep_green
                   bg_color: black
                   bg_opa: COVER
                   pad_all: 0
                   widgets:
+                    # Header carries the Yes/No verdict appended at runtime
+                    # ("Will hit limit - No"); detail line below shows the
+                    # "Xm to spare / Xm early" part. Both default GREEN; the
+                    # refresh script repaints them + the border RED only when
+                    # the runway pace ratio says the limit WILL be hit (>1).
                     - label:
+                        id: clawd_m_hit_label
                         text: ${t_modern_hit | default("Will hit limit")}
                         x: 16
                         y: 16
                         text_font: nunito_14
-                        text_color: crimson
+                        text_color: ep_green
                     - label:
                         id: clawd_m_hit_num
                         text: ""
                         x: 16
-                        y: 40
-                        text_font: nunito_24
-                        text_color: crimson
-                    - label:
-                        id: clawd_m_hit_note
-                        text: ${t_modern_hit_note | default("runway")}
-                        x: 16
-                        y: 72
-                        text_font: nunito_12
-                        text_color: misty_blue
+                        y: 46
+                        text_font: nunito_18
+                        text_color: ep_green
               # ===== Weekly card =====
               - obj:
                   id: clawd_m_card_weekly
@@ -410,6 +410,13 @@ script:
       - lvgl.label.update:
           id: clawd_m_session_num
           text: !lambda 'return id(clawd_m_session_pct).has_state() ? to_string((int) id(clawd_m_session_pct).state) : std::string("0");'
+      # Re-anchor the "%" sign just right of the session number's MEASURED width
+      # so it hugs the digits whether usage is 1, 2 or 3 digits (a fixed x would
+      # gap on "8" and overlap on "100"). 22 = the number's left x; +4 px lede.
+      - lambda: |-
+          lv_obj_t *num = id(clawd_m_session_num);
+          lv_obj_update_layout(num);
+          lv_obj_set_x(id(clawd_m_session_pct_sign), 22 + lv_obj_get_width(num) + 4);
       - lvgl.bar.update:
           id: clawd_m_session_bar
           value: !lambda 'return id(clawd_m_session_pct).has_state() ? (int) id(clawd_m_session_pct).state : 0;'
@@ -450,9 +457,57 @@ script:
       - lvgl.label.update:
           id: clawd_m_burn30
           text: !lambda 'return id(clawd_burn30_rate).has_state() ? to_string((int) id(clawd_burn30_rate).state) : std::string("0");'
+      # "Will hit limit" header gets the verdict word appended ("- No"/"- Yes"),
+      # parsed out of the runway text sensor (text before the middle dot ·).
+      - lvgl.label.update:
+          id: clawd_m_hit_label
+          text: !lambda |-
+            std::string base = "${t_modern_hit | default("Will hit limit")}";
+            if (!id(clawd_rw_runway).has_state()) return base;
+            std::string s = id(clawd_rw_runway).state;
+            if (s == "${t_runway_unknown | default("unknown")}") return base;
+            std::string verdict = s;
+            size_t p = s.find("\xC2\xB7");
+            if (p != std::string::npos) verdict = s.substr(0, p);
+            while (!verdict.empty() && verdict.back() == ' ') verdict.pop_back();
+            if (verdict.empty()) return base;
+            return base + " - " + verdict;
+      # Detail line = the "Xm to spare" / "Xm early" part (after the dot), if any.
       - lvgl.label.update:
           id: clawd_m_hit_num
-          text: !lambda 'return id(clawd_rw_runway).has_state() ? id(clawd_rw_runway).state : std::string("");'
+          text: !lambda |-
+            if (!id(clawd_rw_runway).has_state()) return std::string("");
+            std::string s = id(clawd_rw_runway).state;
+            size_t p = s.find("\xC2\xB7");
+            if (p == std::string::npos) return std::string("");
+            std::string detail = s.substr(p + 2);
+            while (!detail.empty() && detail.front() == ' ') detail.erase(detail.begin());
+            return detail;
+      # Color: GREEN by default, RED only when the pace ratio (T_reset/T_limit)
+      # exceeds 1 — i.e. usage would hit the limit BEFORE the reset.
+      - if:
+          condition:
+            lambda: 'return id(clawd_rw_runway_ratio).has_state() && id(clawd_rw_runway_ratio).state > 1.0f;'
+          then:
+            - lvgl.obj.update:
+                id: clawd_m_card_hit
+                border_color: crimson
+            - lvgl.label.update:
+                id: clawd_m_hit_label
+                text_color: crimson
+            - lvgl.label.update:
+                id: clawd_m_hit_num
+                text_color: crimson
+          else:
+            - lvgl.obj.update:
+                id: clawd_m_card_hit
+                border_color: ep_green
+            - lvgl.label.update:
+                id: clawd_m_hit_label
+                text_color: ep_green
+            - lvgl.label.update:
+                id: clawd_m_hit_num
+                text_color: ep_green
       - lvgl.label.update:
           id: clawd_m_weekly_num
           text: !lambda 'return id(clawd_m_weekly_pct).has_state() ? (to_string((int) id(clawd_m_weekly_pct).state) + "%") : std::string("0%");'
