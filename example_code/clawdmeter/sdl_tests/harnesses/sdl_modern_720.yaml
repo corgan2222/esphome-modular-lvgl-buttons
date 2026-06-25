@@ -1,0 +1,191 @@
+# Reusable SDL test harness — MODERN page-1 design (SQUARE 720x720).
+#
+# Previews ui/clawdmeter/layout_modern_720.yaml (the dark card layout, large
+# square aspect — Waveshare ESP32-P4-86-Panel) on the desktop without touching
+# gp.yaml or any device config. Identical wiring to sdl_modern_square.yaml — only
+# the design switch + screen size differ:
+#
+#   substitutions: design: modern_720
+#   clawd_layout: !include layout_${design}.yaml   (the live wiring)
+#
+# layout_modern_720 owns its OWN creature root, the clawd_init on_boot and its
+# clawd_m_* hero/card sensors, so — unlike the classic harness — there is NO
+# inline clawd_creature / clawd_stats include. The sim feed therefore drives the
+# creature via clawd_c_anim_session_pct and the cards via the clawd_m_* sensors
+# (no clawd_stats_* exist on this page). The runway backend stays wired because
+# the modern "Will hit limit" card reads clawd_rw_runway.
+#
+# Screen size override: -s screen_width 720 -s screen_height 720
+# Synthetic data: -s sim_feed 1  (see run_data.sh)
+
+external_components:
+  - source: github://pr#12312
+    components: [font, image, lvgl]
+    refresh: 1h
+
+substitutions:
+  ha_session_usage: "sensor.session_usage"
+  ha_week_usage:    "sensor.week_usage"
+  ha_extra_usage:   "sensor.extra_usage"
+  ha_extra_credits: "sensor.extra_usage_credits"
+  ha_session_reset: "sensor.session_reset_time"
+  ha_weekly_reset:  "sensor.weekly_reset_time"
+
+  design: modern_720   # classic | modern | modern_landscape | modern_square | modern_720
+
+  icon_font: mdi_icons_40
+  text_font: nunito_20
+  text_color: white
+  bg_color: black
+  button_on_color: "ep_orange"
+  button_off_color: "very_dark_gray"
+  icon_on_color: "yellow"
+  icon_off_color: "gray"
+  label_on_color: "white"
+  label_off_color: "gray"
+  button_text_color: "white"
+
+  screen_width: '720'
+  screen_height: '720'
+
+  # Synthetic data feed for SDL screenshots: "0" = off (HA-driven; cards render
+  # 0% / "warming up" on the host), "1" = on (an on-device rising feed so every
+  # card shows real numbers). Enable per-run with `-s sim_feed 1` — see run_data.sh.
+  sim_feed: "0"
+
+esphome:
+  name: clawdmeter-sdl
+  friendly_name: Clawdmeter SDL
+  on_boot:
+    - priority: -200
+      then:
+        - lvgl.page.show: main_page
+
+logger:
+  level: info
+
+api:
+
+image:
+  defaults:
+    byte_order: little_endian
+
+script:
+  - id: time_update
+    then:
+      - lambda: '// no-op'
+
+# Synthetic data feed (opt-in via sim_feed=="1"). Lets the SDL screenshot show
+# real numbers instead of the HA-unavailable 0% / "warming up" state. No-op when
+# sim_feed=="0". Publishes to the modern clawd_m_* sensors (not clawd_stats_*).
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          if (std::string("${sim_feed}") != "1") return;
+          // Monotonic-rising session % so the engine leaves "warming up" and the
+          // burn-rate / time-to-100 tiles compute a real slope. 0.04%/s = 2.4%/min
+          // (above the engine's HEAVY threshold); the 20s cadence clears the
+          // >15s sample burst-ignore; a ~120s window clears warming-up.
+          float t = millis() / 1000.0f;
+          float sess = 28.0f + t * 0.04f;
+          if (sess > 95.0f) sess = 95.0f;
+          id(clawd_c_anim_session_pct).publish_state(sess);
+          id(clawd_burn5_src).publish_state(sess);
+          id(clawd_burn30_src).publish_state(sess);
+          id(clawd_ttl_ttl_usage).publish_state(sess);
+          // Feed the runway backend's OWN usage sensor too, otherwise the
+          // "Will hit limit" card stays "unknown"/green on the host (the
+          // runway verdict needs usage + reset_in + burn all present).
+          id(clawd_rw_runway_usage).publish_state(sess);
+          id(clawd_m_session_pct).publish_state(sess);
+          id(clawd_m_weekly_pct).publish_state(46.0f);
+          id(clawd_m_extra_pct).publish_state(12.0f);
+          id(clawd_m_extra_credits).publish_state(3.0f);
+          // ISO-8601 UTC reset timestamps (now+3h session, now+4d weekly) so the
+          // reset-clock tiles parse and render HH:MM. Host wall-clock is valid.
+          time_t nowt = ::time(nullptr);
+          if (nowt > 1000000) {
+            char buf[40]; struct tm tmv;
+            time_t r1 = nowt + 3 * 3600;  gmtime_r(&r1, &tmv);
+            snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d+00:00",
+                     tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+            id(clawd_reset_reset_src).publish_state(std::string(buf));
+            time_t r2 = nowt + 4 * 86400; gmtime_r(&r2, &tmv);
+            snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d+00:00",
+                     tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+            id(clawd_wreset_reset_src).publish_state(std::string(buf));
+          }
+
+packages:
+  sensors:  !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml
+  time:     !include esphome-modular-lvgl-buttons/common/time_homeassistant.yaml
+  theme:    !include esphome-modular-lvgl-buttons/common/theme/index.yaml
+  hardware: !include esphome-modular-lvgl-buttons/hardware/SDL-lvgl.yaml
+  info_screen: !include esphome-modular-lvgl-buttons/pages/info.yaml
+
+  # ---- Clawdmeter, assembled from individual tiles ----
+  clawd_engine: !include esphome-modular-lvgl-buttons/ui/clawdmeter/engine.yaml
+
+  # Page-1 layout via the compile-time design switch (modern_720 under test).
+  clawd_layout: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/layout_${design}.yaml
+
+  clawd_burn5: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+    vars:
+      uid: clawd_burn5
+      name: "Clawd Burn Rate 5m"
+      window_min: 5
+      source_entity: $ha_session_usage
+
+  clawd_burn30: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+    vars:
+      uid: clawd_burn30
+      name: "Clawd Burn Rate 30m"
+      window_min: 30
+      source_entity: $ha_session_usage
+
+  clawd_ttl: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/time_to_100.yaml
+    vars:
+      uid: clawd_ttl
+      rate_id: clawd_burn30_rate
+      source_entity: $ha_session_usage
+
+  clawd_reset: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
+    vars:
+      uid: clawd_reset
+      source_entity: $ha_session_reset
+
+  clawd_wreset: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/session_reset_clock.yaml
+    vars:
+      uid: clawd_wreset
+      source_entity: $ha_weekly_reset
+      name: "Clawd Weekly Reset Time"
+      reset_in_name: "Clawd Weekly Reset In"
+
+  # Runway backend — the modern "Will hit limit" card reads clawd_rw_runway.
+  clawd_rw: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/runway.yaml
+    vars:
+      uid: clawd_rw
+      rate_id: clawd_burn30_rate
+      resetin_id: clawd_reset_reset_in_min
+      source_entity: $ha_session_usage
+
+  clawd_anim: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/anim_select.yaml
+    vars:
+      uid: clawd_anim
+
+lvgl:
+  pages:
+    - id: main_page
+      layout: 4x4
+      styles: page_style
+      bg_color: $bg_color
+      widgets: []
