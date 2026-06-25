@@ -223,7 +223,7 @@ lvgl:
                   id: clawd_m_card_burn
                   x: 24
                   y: 562
-                  width: 260
+                  width: 209
                   height: 96
                   radius: 16
                   border_width: 0
@@ -253,22 +253,22 @@ lvgl:
                     - label:
                         id: clawd_m_burn30
                         text: "0"
-                        x: 140
+                        x: 127
                         y: 40
                         text_font: nunito_24
                         text_color: white
                     - label:
                         text: ${t_modern_burn30_unit | default("%/h  30 min")}
-                        x: 140
+                        x: 127
                         y: 70
                         text_font: nunito_12
                         text_color: misty_blue
               # ===== Will-hit-limit card (runway verdict) =====
               - obj:
                   id: clawd_m_card_hit
-                  x: 298
+                  x: 247
                   y: 562
-                  width: 158
+                  width: 209
                   height: 96
                   radius: 16
                   border_width: 1
