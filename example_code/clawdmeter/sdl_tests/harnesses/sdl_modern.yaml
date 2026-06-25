@@ -54,6 +54,11 @@ substitutions:
   # card shows real numbers). Enable per-run with `-s sim_feed 1` — see run_data.sh.
   sim_feed: "0"
 
+  # Modern extra-card feed. The full layouts define the weekly/extra sensors; the
+  # compact 320x240 layout intentionally omits them (Session/Till/Hit cards only),
+  # so render that one with `-s sim_extra ""` to silence the missing publishes.
+  sim_extra: "id(clawd_m_weekly_pct).publish_state(46.0f); id(clawd_m_extra_pct).publish_state(12.0f); id(clawd_m_extra_credits).publish_state(3.0f);"
+
 esphome:
   name: clawdmeter-sdl
   friendly_name: Clawdmeter SDL
@@ -100,9 +105,7 @@ interval:
           // runway verdict needs usage + reset_in + burn all present).
           id(clawd_rw_runway_usage).publish_state(sess);
           id(clawd_m_session_pct).publish_state(sess);
-          id(clawd_m_weekly_pct).publish_state(46.0f);
-          id(clawd_m_extra_pct).publish_state(12.0f);
-          id(clawd_m_extra_credits).publish_state(3.0f);
+          ${sim_extra}
           // ISO-8601 UTC reset timestamps (now+3h session, now+4d weekly) so the
           // reset-clock tiles parse and render HH:MM. Host wall-clock is valid.
           time_t nowt = ::time(nullptr);
