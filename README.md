@@ -308,7 +308,7 @@ packages:
   sensors:  !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml
 ```
 
-Then `esphome run your-config.yaml` — a window opens simulating the display. See `example_code/SDL-lvgl-display_modular_480px.yaml` for a full working SDL config.
+Then `esphome run your-config.yaml` — a window opens simulating the display. See `example_code/modular/SDL-lvgl-display_modular_480px.yaml` for a full working SDL config.
 
 ---
 

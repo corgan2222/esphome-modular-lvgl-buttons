@@ -26,7 +26,7 @@ echo "Testing config files from $EXAMPLE_DIR"
 echo "========================================="
 echo ""
 
-for yaml_file in "$EXAMPLE_DIR"/*.yaml; do
+for yaml_file in "$EXAMPLE_DIR"/modular/*.yaml; do
   [ -f "$yaml_file" ] || continue
   basename=$(basename "$yaml_file")
 
