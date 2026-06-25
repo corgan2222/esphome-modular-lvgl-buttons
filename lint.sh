@@ -12,7 +12,7 @@
 #
 # Always runs:
 #   1. yamllint over the whole repo
-#   2. `esphome config` against every example_code/*.yaml
+#   2. `esphome config` against every example_code/modular/*.yaml
 #      (validated from the parent directory via a temp symlink, because the
 #      examples !include paths like `esphome-modular-lvgl-buttons/...`)
 
@@ -80,7 +80,7 @@ else
 fi
 
 echo
-echo "==> esphome config (validates each example_code/*.yaml)"
+echo "==> esphome config (validates each example_code/modular/*.yaml)"
 if ! command -v esphome >/dev/null 2>&1; then
   echo "  esphome CLI not found. Install with: pip install esphome"
   exit 1
@@ -94,7 +94,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for cfg in "$REPO_ROOT"/example_code/*.yaml; do
+for cfg in "$REPO_ROOT"/example_code/modular/*.yaml; do
   base="$(basename "$cfg")"
   link="$PARENT_DIR/$base"
   if [[ -e "$link" && ! -L "$link" ]]; then

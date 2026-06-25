@@ -27,7 +27,7 @@ Read ARCHITECTURE.md for the full architecture reference.
 ## Testing
 
 ```bash
-esphome config example_code/SDL-lvgl-display_modular_480px.yaml  # single config
+esphome config example_code/modular/SDL-lvgl-display_modular_480px.yaml  # single config
 bash testing/test_configs.sh  # all configs
 ```
 

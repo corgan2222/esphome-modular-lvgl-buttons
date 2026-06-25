@@ -60,7 +60,7 @@ Read [LVGL_REFERENCE.md](../LVGL_REFERENCE.md) for critical LVGL v8 behavior —
 ## Testing
 
 ```bash
-esphome config example_code/SDL-lvgl-display_modular_480px.yaml
+esphome config example_code/modular/SDL-lvgl-display_modular_480px.yaml
 ```
 
 Or run full validation: `bash testing/test_configs.sh`
