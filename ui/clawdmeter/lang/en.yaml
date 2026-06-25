@@ -79,3 +79,40 @@ substitutions:
 
   # ---- runway_tile.yaml: optional display tile label ----
   t_tile_runway: 'Hit limit?'
+
+  # ---- modern layout (layout_modern.yaml) ----
+  # Plain labels keep a single literal % ; *_fmt tokens are snprintf formats
+  # (%s / %.1f kept verbatim).
+  t_modern_session:      'Session'
+  t_modern_min:          'min'
+  t_modern_till:         'Time till 100%'
+  t_modern_burn:         'Burn Rate'
+  t_modern_burn5_unit:   '%/h  5 min'
+  t_modern_burn30_unit:  '%/h  30 min'
+  t_modern_hit:          'Will hit limit'
+  t_modern_hit_note:     'runway'
+  t_modern_weekly:       'Weekly'
+  t_modern_extra:        'Extra'
+  t_modern_reset_fmt:    'Reset %s'
+  t_modern_eta_fmt:      'ETA %s'
+  t_modern_credits_fmt:  '%.1f cr'
+
+  # ---- charts page (charts_page.yaml) ----
+  # Plain LVGL label strings (no printf placeholders). Leading/trailing spaces are
+  # intentional padding before the colored legend dots — keep them inside the quotes.
+  t_charts_title:           'Claude Usage'
+  t_charts_legend_session:  ' Session usage   '
+  t_charts_legend_weekly:   ' Weekly usage'
+  t_charts_legend_credits:  ' Extra Usage Credits'
+  t_charts_legend_limit:    ' Extra Usage Limit 20.0 credits'
+
+  # ---- view-mode (view_mode.yaml) ----
+  # t_view_mode_name / t_view_alt_seconds_name are HA entity names; the three
+  # t_view_show_*/t_view_alternate are the select OPTION strings (also matched in
+  # the apply_view/interval lambdas). restore_value persists the chosen option,
+  # so keep these option tokens STABLE per language across versions.
+  t_view_mode_name:        'View Mode'
+  t_view_show_stats:       'Show Stats'
+  t_view_show_graph:       'Show Graph'
+  t_view_alternate:        'Alternate'
+  t_view_alt_seconds_name: 'Alternate Seconds'
