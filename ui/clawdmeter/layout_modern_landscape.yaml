@@ -1,0 +1,534 @@
+# layout_modern_landscape.yaml — page-1 "Modern Dark" look, LANDSCAPE 800x480.
+# DESIGN-SPECIFIC to 800x480 landscape — absolute geometry, re-flowed from the
+# 480x800 portrait variant (layout_modern.yaml) into a two-zone layout: creature
+# hero + session block on the LEFT, the metric cards (till / burn+hit /
+# weekly+extra) on the RIGHT. Not reusable across resolutions. Reads backend
+# compute IDs + its own HA sensors.
+# Selected at compile time by the device config's `design: modern_landscape`.
+#
+# Same widget IDs + same sensor/script/interval blocks as layout_modern.yaml
+# (the clawd_m_refresh script updates every widget by ID) — ONLY the lvgl widget
+# geometry is re-laid-out for the wide aspect. session_num keeps x:22 so the
+# "%"-sign re-anchor lambda's "22" base constant stays valid unchanged.
+#
+# CREATURE PLACEMENT (same as portrait variant): this file OWNS the creature
+# root (`clawd_c_creature_root`) as a CENTER child INSIDE the GIF frame and
+# replicates the on_boot clawd_init() + the HA session-% sensor that feeds
+# clawd_set_usage(). creature.yaml is NOT re-included; no original repo file is
+# modified. Absolute positioning via a full-page wrapper obj (clawd_m_root) that
+# fills grid cell (0,0) spanning the whole 4x4 base page with no inner layout.
+
+# --- own HA-derived percentage sensors (mirror stats_panel's pattern) ---
+sensor:
+  # Feeds the creature animation engine (was provided by creature.yaml).
+  - platform: homeassistant
+    id: clawd_c_anim_session_pct
+    entity_id: ${ha_session_usage}
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_usage(x, 0, 0.0f, 0);'
+  # Drive the modern hero/cards (consumed by clawd_m_refresh in Task 1.3).
+  - platform: homeassistant
+    id: clawd_m_session_pct
+    entity_id: ${ha_session_usage}
+    internal: true
+  - platform: homeassistant
+    id: clawd_m_weekly_pct
+    entity_id: ${ha_week_usage}
+    internal: true
+  - platform: homeassistant
+    id: clawd_m_extra_pct
+    entity_id: ${ha_extra_usage}
+    internal: true
+  - platform: homeassistant
+    id: clawd_m_extra_credits
+    entity_id: ${ha_extra_credits}
+    internal: true
+
+# --- boot the creature canvas (was provided by creature.yaml) ---
+esphome:
+  on_boot:
+    - priority: -100   # after LVGL + display are up
+      then:
+        - lambda: |-
+            clawd_init(id(clawd_c_creature_root), ${screen_width}, ${screen_height});
+
+lvgl:
+  pages:
+    - id: !extend main_page
+      bg_color: black
+      bg_opa: COVER
+      pad_all: 0
+      widgets:
+        # Full-page wrapper: fills the base 4x4 grid (cell 0,0 spanning all),
+        # carries NO inner layout, so everything inside positions absolutely
+        # relative to the page (x/y + TOP_RIGHT against the page edges).
+        - obj:
+            id: clawd_m_root
+            grid_cell_row_pos: 0
+            grid_cell_column_pos: 0
+            grid_cell_row_span: 4
+            grid_cell_column_span: 4
+            grid_cell_x_align: stretch
+            grid_cell_y_align: stretch
+            bg_color: black
+            bg_opa: COVER
+            border_width: 0
+            pad_all: 0
+            radius: 0
+            widgets:
+              # ===== GIF frame (left column, top) — holds the creature =====
+              - obj:
+                  id: clawd_m_gif_frame
+                  x: 16
+                  y: 16
+                  width: 404
+                  height: 300
+                  radius: 14
+                  border_width: 2
+                  border_color: slate_blue_gray
+                  bg_color: black
+                  bg_opa: COVER
+                  pad_all: 0
+                  widgets:
+                    # Engine draws the creature into this box (clawd_init above).
+                    - obj:
+                        id: clawd_c_creature_root
+                        align: CENTER
+                        width: 100%
+                        height: 100%
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+              # ===== Session hero (left column, under creature) =====
+              - label:
+                  text: ${t_modern_session | default("Session")}
+                  x: 24
+                  y: 336
+                  text_font: nunito_18
+                  text_color: white
+              - label:
+                  id: clawd_m_session_reset
+                  text: ""
+                  x: 230
+                  y: 338
+                  text_font: nunito_14
+                  text_color: misty_blue
+              - label:
+                  id: clawd_m_session_num
+                  text: "0"
+                  x: 22
+                  y: 348
+                  text_font: nunito_72
+                  text_color: ep_orange
+              - label:
+                  id: clawd_m_session_pct_sign
+                  text: "%"
+                  x: 100
+                  y: 384
+                  text_font: nunito_36
+                  text_color: ep_orange
+              - label:
+                  id: clawd_m_session_min
+                  text: "0"
+                  x: 230
+                  y: 368
+                  text_font: nunito_48
+                  text_color: white
+              - label:
+                  text: ${t_modern_min | default("min")}
+                  x: 324
+                  y: 390
+                  text_font: nunito_20
+                  text_color: misty_blue
+              - bar:
+                  id: clawd_m_session_bar
+                  x: 24
+                  y: 430
+                  width: 392
+                  height: 18
+                  min_value: 0
+                  max_value: 100
+                  value: 0
+                  radius: 9
+                  bg_color: gray900
+                  bg_opa: COVER
+                  indicator:
+                    bg_color: ep_orange
+                    bg_opa: COVER
+                    radius: 9
+              # ===== Time-till-100% card (right column, row 1, full width) =====
+              - obj:
+                  id: clawd_m_card_till
+                  x: 436
+                  y: 16
+                  width: 348
+                  height: 120
+                  radius: 16
+                  border_width: 0
+                  bg_color: slate_blue_gray
+                  bg_opa: COVER
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        text: ${t_modern_till | default("Time till 100%")}
+                        x: 18
+                        y: 16
+                        text_font: nunito_14
+                        text_color: amber
+                    - label:
+                        id: clawd_m_till_eta
+                        text: ""
+                        x: 18
+                        y: 44
+                        text_font: nunito_14
+                        text_color: misty_blue
+                    - label:
+                        id: clawd_m_till_num
+                        text: "0"
+                        align: TOP_RIGHT
+                        x: -70
+                        y: 14
+                        text_font: nunito_48
+                        text_color: amber
+                    - label:
+                        text: ${t_modern_min | default("min")}
+                        align: TOP_RIGHT
+                        x: -22
+                        y: 34
+                        text_font: nunito_20
+                        text_color: amber
+                    - bar:
+                        id: clawd_m_till_bar
+                        x: 18
+                        y: 92
+                        width: 312
+                        height: 12
+                        min_value: 0
+                        max_value: 100
+                        value: 0
+                        radius: 6
+                        bg_color: gray900
+                        bg_opa: COVER
+                        indicator:
+                          bg_color: amber
+                          bg_opa: COVER
+                          radius: 6
+              # ===== Burn-rate card (right column, row 2 left) =====
+              - obj:
+                  id: clawd_m_card_burn
+                  x: 436
+                  y: 148
+                  width: 166
+                  height: 140
+                  radius: 16
+                  border_width: 0
+                  bg_color: slate_blue_gray
+                  bg_opa: COVER
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        text: ${t_modern_burn | default("Burn Rate")}
+                        x: 16
+                        y: 14
+                        text_font: nunito_14
+                        text_color: white
+                    - label:
+                        id: clawd_m_burn5
+                        text: "0"
+                        x: 16
+                        y: 40
+                        text_font: nunito_24
+                        text_color: white
+                    - label:
+                        text: ${t_modern_burn5_unit | default("%/h  5 min")}
+                        x: 78
+                        y: 50
+                        text_font: nunito_12
+                        text_color: misty_blue
+                    - label:
+                        id: clawd_m_burn30
+                        text: "0"
+                        x: 16
+                        y: 84
+                        text_font: nunito_24
+                        text_color: white
+                    - label:
+                        text: ${t_modern_burn30_unit | default("%/h  30 min")}
+                        x: 78
+                        y: 94
+                        text_font: nunito_12
+                        text_color: misty_blue
+              # ===== Will-hit-limit card (right column, row 2 right) =====
+              - obj:
+                  id: clawd_m_card_hit
+                  x: 618
+                  y: 148
+                  width: 166
+                  height: 140
+                  radius: 16
+                  border_width: 1
+                  border_color: ep_green
+                  bg_color: black
+                  bg_opa: COVER
+                  pad_all: 0
+                  widgets:
+                    # Header carries the Yes/No verdict appended at runtime
+                    # ("Will hit limit - No"); detail line below shows the
+                    # "Xm to spare / Xm early" part. Both default GREEN; the
+                    # refresh script repaints them + the border RED only when
+                    # the runway pace ratio says the limit WILL be hit (>1).
+                    - label:
+                        id: clawd_m_hit_label
+                        text: ${t_modern_hit | default("Will hit limit")}
+                        x: 16
+                        y: 18
+                        text_font: nunito_14
+                        text_color: ep_green
+                    - label:
+                        id: clawd_m_hit_num
+                        text: ""
+                        x: 16
+                        y: 52
+                        text_font: nunito_18
+                        text_color: ep_green
+              # ===== Weekly card (right column, row 3 left) =====
+              - obj:
+                  id: clawd_m_card_weekly
+                  x: 436
+                  y: 300
+                  width: 166
+                  height: 148
+                  radius: 16
+                  border_width: 0
+                  bg_color: slate_blue_gray
+                  bg_opa: COVER
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        text: ${t_modern_weekly | default("Weekly")}
+                        x: 16
+                        y: 14
+                        text_font: nunito_14
+                        text_color: white
+                    - label:
+                        id: clawd_m_weekly_reset
+                        text: ""
+                        align: TOP_RIGHT
+                        x: -14
+                        y: 14
+                        text_font: nunito_14
+                        text_color: misty_blue
+                    - label:
+                        id: clawd_m_weekly_num
+                        text: "0%"
+                        x: 16
+                        y: 44
+                        text_font: nunito_42
+                        text_color: ep_green
+                    - bar:
+                        id: clawd_m_weekly_bar
+                        x: 16
+                        y: 124
+                        width: 134
+                        height: 10
+                        min_value: 0
+                        max_value: 100
+                        value: 0
+                        radius: 5
+                        bg_color: gray900
+                        bg_opa: COVER
+                        indicator:
+                          bg_color: ep_green
+                          bg_opa: COVER
+                          radius: 5
+              # ===== Extra card (right column, row 3 right) =====
+              # NOTE: the credits label is `clawd_m_extra_cr`, NOT
+              # clawd_m_extra_credits — that id is already taken by the HA
+              # credits SENSOR above (ESPHome forbids duplicate IDs). The
+              # refresh script writes this label from that sensor's state.
+              - obj:
+                  id: clawd_m_card_extra
+                  x: 618
+                  y: 300
+                  width: 166
+                  height: 148
+                  radius: 16
+                  border_width: 0
+                  bg_color: slate_blue_gray
+                  bg_opa: COVER
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        text: ${t_modern_extra | default("Extra")}
+                        x: 16
+                        y: 14
+                        text_font: nunito_14
+                        text_color: white
+                    - label:
+                        id: clawd_m_extra_cr
+                        text: ""
+                        align: TOP_RIGHT
+                        x: -14
+                        y: 14
+                        text_font: nunito_14
+                        text_color: misty_blue
+                    - label:
+                        id: clawd_m_extra_num
+                        text: "0%"
+                        x: 16
+                        y: 44
+                        text_font: nunito_42
+                        text_color: crimson
+                    - bar:
+                        id: clawd_m_extra_bar
+                        x: 16
+                        y: 124
+                        width: 134
+                        height: 10
+                        min_value: 0
+                        max_value: 100
+                        value: 0
+                        radius: 5
+                        bg_color: gray900
+                        bg_opa: COVER
+                        indicator:
+                          bg_color: crimson
+                          bg_opa: COVER
+                          radius: 5
+
+# --- refresh: push backend compute IDs + own HA sensors into the widgets ---
+# Top-level (merges with the device config's other script:/interval: blocks).
+# Every read is has_state()-guarded so pre-warmup widgets show their default.
+script:
+  - id: clawd_m_refresh
+    then:
+      - lvgl.label.update:
+          id: clawd_m_session_num
+          text: !lambda 'return id(clawd_m_session_pct).has_state() ? to_string((int) id(clawd_m_session_pct).state) : std::string("0");'
+      # Re-anchor the "%" sign just right of the session number's MEASURED width
+      # so it hugs the digits whether usage is 1, 2 or 3 digits (a fixed x would
+      # gap on "8" and overlap on "100"). 22 = the number's left x; +4 px lede.
+      - lambda: |-
+          lv_obj_t *num = id(clawd_m_session_num);
+          lv_obj_update_layout(num);
+          lv_obj_set_x(id(clawd_m_session_pct_sign), 22 + lv_obj_get_width(num) + 4);
+      - lvgl.bar.update:
+          id: clawd_m_session_bar
+          value: !lambda 'return id(clawd_m_session_pct).has_state() ? (int) id(clawd_m_session_pct).state : 0;'
+      - lvgl.label.update:
+          id: clawd_m_session_min
+          text: !lambda 'return id(clawd_reset_reset_in_min).has_state() ? to_string((int) id(clawd_reset_reset_in_min).state) : std::string("0");'
+      - lvgl.label.update:
+          id: clawd_m_session_reset
+          text: !lambda |-
+            if (!id(clawd_reset_reset_clock).has_state()) return std::string("");
+            char b[28];
+            snprintf(b, sizeof(b), "${t_modern_reset_fmt | default("Reset %s")}", id(clawd_reset_reset_clock).state.c_str());
+            return std::string(b);
+      - lvgl.label.update:
+          id: clawd_m_till_num
+          # clawd_ttl_time_to_100 is a text_sensor ("in 45 min" / localized / "unknown").
+          # Pull the first integer run out of it — single source of truth, no formula
+          # duplication, locale-robust (every t_ttl_mins variant embeds the %d digits).
+          text: !lambda |-
+            if (!id(clawd_ttl_time_to_100).has_state()) return std::string("0");
+            const std::string &s = id(clawd_ttl_time_to_100).state;
+            size_t i = 0; while (i < s.size() && (s[i] < '0' || s[i] > '9')) i++;
+            size_t j = i; while (j < s.size() && s[j] >= '0' && s[j] <= '9') j++;
+            return i == j ? std::string("--") : s.substr(i, j - i);
+      - lvgl.bar.update:
+          id: clawd_m_till_bar
+          value: !lambda 'return id(clawd_m_session_pct).has_state() ? (int) id(clawd_m_session_pct).state : 0;'
+      - lvgl.label.update:
+          id: clawd_m_till_eta
+          text: !lambda |-
+            if (!id(clawd_ttl_eta_clock).has_state()) return std::string("");
+            char b[28];
+            snprintf(b, sizeof(b), "${t_modern_eta_fmt | default("ETA %s")}", id(clawd_ttl_eta_clock).state.c_str());
+            return std::string(b);
+      - lvgl.label.update:
+          id: clawd_m_burn5
+          text: !lambda 'return id(clawd_burn5_rate).has_state() ? to_string((int) id(clawd_burn5_rate).state) : std::string("0");'
+      - lvgl.label.update:
+          id: clawd_m_burn30
+          text: !lambda 'return id(clawd_burn30_rate).has_state() ? to_string((int) id(clawd_burn30_rate).state) : std::string("0");'
+      # "Will hit limit" header gets the verdict word appended ("- No"/"- Yes"),
+      # parsed out of the runway text sensor (text before the middle dot ·).
+      - lvgl.label.update:
+          id: clawd_m_hit_label
+          text: !lambda |-
+            std::string base = "${t_modern_hit | default("Will hit limit")}";
+            if (!id(clawd_rw_runway).has_state()) return base;
+            std::string s = id(clawd_rw_runway).state;
+            if (s == "${t_runway_unknown | default("unknown")}") return base;
+            std::string verdict = s;
+            size_t p = s.find("\xC2\xB7");
+            if (p != std::string::npos) verdict = s.substr(0, p);
+            while (!verdict.empty() && verdict.back() == ' ') verdict.pop_back();
+            if (verdict.empty()) return base;
+            return base + " - " + verdict;
+      # Detail line = the "Xm to spare" / "Xm early" part (after the dot), if any.
+      - lvgl.label.update:
+          id: clawd_m_hit_num
+          text: !lambda |-
+            if (!id(clawd_rw_runway).has_state()) return std::string("");
+            std::string s = id(clawd_rw_runway).state;
+            size_t p = s.find("\xC2\xB7");
+            if (p == std::string::npos) return std::string("");
+            std::string detail = s.substr(p + 2);
+            while (!detail.empty() && detail.front() == ' ') detail.erase(detail.begin());
+            return detail;
+      # Color: GREEN by default, RED only when the pace ratio (T_reset/T_limit)
+      # exceeds 1 — i.e. usage would hit the limit BEFORE the reset.
+      - if:
+          condition:
+            lambda: 'return id(clawd_rw_runway_ratio).has_state() && id(clawd_rw_runway_ratio).state > 1.0f;'
+          then:
+            - lvgl.obj.update:
+                id: clawd_m_card_hit
+                border_color: crimson
+            - lvgl.label.update:
+                id: clawd_m_hit_label
+                text_color: crimson
+            - lvgl.label.update:
+                id: clawd_m_hit_num
+                text_color: crimson
+          else:
+            - lvgl.obj.update:
+                id: clawd_m_card_hit
+                border_color: ep_green
+            - lvgl.label.update:
+                id: clawd_m_hit_label
+                text_color: ep_green
+            - lvgl.label.update:
+                id: clawd_m_hit_num
+                text_color: ep_green
+      - lvgl.label.update:
+          id: clawd_m_weekly_num
+          text: !lambda 'return id(clawd_m_weekly_pct).has_state() ? (to_string((int) id(clawd_m_weekly_pct).state) + "%") : std::string("0%");'
+      - lvgl.bar.update:
+          id: clawd_m_weekly_bar
+          value: !lambda 'return id(clawd_m_weekly_pct).has_state() ? (int) id(clawd_m_weekly_pct).state : 0;'
+      - lvgl.label.update:
+          id: clawd_m_weekly_reset
+          text: !lambda 'return id(clawd_wreset_reset_clock).has_state() ? id(clawd_wreset_reset_clock).state : std::string("");'
+      - lvgl.label.update:
+          id: clawd_m_extra_num
+          text: !lambda 'return id(clawd_m_extra_pct).has_state() ? (to_string((int) id(clawd_m_extra_pct).state) + "%") : std::string("0%");'
+      - lvgl.bar.update:
+          id: clawd_m_extra_bar
+          value: !lambda 'return id(clawd_m_extra_pct).has_state() ? (int) id(clawd_m_extra_pct).state : 0;'
+      - lvgl.label.update:
+          id: clawd_m_extra_cr
+          text: !lambda |-
+            if (!id(clawd_m_extra_credits).has_state()) return std::string("");
+            char b[16];
+            snprintf(b, sizeof(b), "${t_modern_credits_fmt | default("%.1f cr")}", id(clawd_m_extra_credits).state);
+            return std::string(b);
+
+interval:
+  - interval: 3s
+    then:
+      - script.execute: clawd_m_refresh
