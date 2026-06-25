@@ -36,8 +36,6 @@ substitutions:
   t_name_usage_diag:         'Usage Diag'
   t_name_runway:             'Session Runway'
   t_name_runway_ratio:       'Session Runway Pace'
-  t_name_fill_time:          'Session Fill Time'
-  t_name_utilization:        'Usage Utilization'
 
   # ---- stats panel: on-display format strings ----
   t_fmt_session_reset: 'Session %d%% - Reset in %d m - %s'
