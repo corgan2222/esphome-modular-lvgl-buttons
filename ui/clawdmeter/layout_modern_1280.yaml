@@ -1,22 +1,19 @@
-# layout_modern.yaml — page-1 "Modern Dark" look (mockup: clawdmeter_variante_a).
-# DESIGN-SPECIFIC to 480x800 portrait (live board, rotation 0) — uses the
-# mockup's absolute geometry deliberately (spec §3.6 pixel-match). Not reusable
-# across resolutions. Reads backend compute IDs + its own HA sensors.
-# Selected at compile time by the device config's `design: modern`.
+# layout_modern_1280.yaml — page-1 "Modern Dark" look for 800x1280 portrait
+# (Guition ESP32-P4 JC8012P4A1, 10.1", rotation 0). Pixel-exact variant of the
+# 480x800 portrait layout_modern.yaml — NOT responsive. Per-axis scale from the
+# 480x800 base: x/width x1.6667 (800/480), y/height x1.6 (1280/800), so the
+# layout fills the panel edge-to-edge with the base's symmetric margins kept
+# symmetric. Fonts are tier-bumped under the nunito_72 ceiling (hierarchy kept);
+# the trailing "%" and "min" glyphs are bottom-aligned to their hero numbers
+# (label_y = num_y + num_font - label_font) since the hero fonts are tier-capped
+# and do not grow a full 1.6x. Reads the same backend compute IDs + own HA
+# sensors. Selected at compile time by the device config's `design: modern_1280`.
 #
-# CREATURE PLACEMENT (deviation from plan Task 1.2, user decision 2026-06-24):
-#   The plan re-included creature.yaml, but that file positions itself ONLY via
-#   grid_cell_* (needs a grid parent), while this page is absolutely positioned.
-#   The two are mutually exclusive on one page. Chosen fix: this file OWNS the
-#   creature root (`clawd_c_creature_root`) as a CENTER child INSIDE the GIF
-#   frame and replicates the two things creature.yaml provided — the on_boot
-#   clawd_init() and the HA session-% sensor that feeds clawd_set_usage().
-#   creature.yaml is NOT re-included; no original repo file is modified, and the
-#   animation sits cleanly inside the bordered frame.
-#
-#   Absolute positioning is achieved with a full-page wrapper obj (clawd_m_root)
-#   that fills grid cell (0,0) spanning the whole 4x4 base page and carries no
-#   inner layout — so its children use page-relative x/y and TOP_RIGHT aligns.
+# CREATURE PLACEMENT: identical pattern to layout_modern.yaml — this file OWNS
+# the creature root (`clawd_c_creature_root`) as a CENTER child inside the GIF
+# frame and replicates creature.yaml's on_boot clawd_init() + the HA session-%
+# sensor that feeds clawd_set_usage(). creature.yaml is NOT re-included; no
+# original repo file is modified.
 
 # --- own HA-derived percentage sensors (mirror stats_panel's pattern) ---
 sensor:
@@ -28,7 +25,7 @@ sensor:
     on_value:
       then:
         - lambda: 'clawd_set_usage(x, 0, 0.0f, 0);'
-  # Drive the modern hero/cards (consumed by clawd_m_refresh in Task 1.3).
+  # Drive the modern hero/cards (consumed by clawd_m_refresh).
   - platform: homeassistant
     id: clawd_m_session_pct
     entity_id: ${ha_session_usage}
@@ -78,15 +75,15 @@ lvgl:
             pad_all: 0
             radius: 0
             widgets:
-              # ===== GIF frame (top third) — holds the creature animation =====
+              # ===== GIF frame (top) — holds the creature animation =====
               - obj:
                   id: clawd_m_gif_frame
-                  x: 60
-                  y: 28
-                  width: 360
-                  height: 250
-                  radius: 14
-                  border_width: 2
+                  x: 100
+                  y: 45
+                  width: 600
+                  height: 400
+                  radius: 22
+                  border_width: 3
                   border_color: slate_blue_gray
                   bg_color: black
                   bg_opa: COVER
@@ -104,71 +101,71 @@ lvgl:
               # ===== Session hero =====
               - label:
                   text: ${t_modern_session | default("Session")}
-                  x: 24
-                  y: 318
-                  text_font: nunito_18
+                  x: 40
+                  y: 509
+                  text_font: nunito_24
                   text_color: white
               - label:
                   id: clawd_m_session_reset
                   text: ""
                   align: TOP_RIGHT
-                  x: -24
-                  y: 320
-                  text_font: nunito_14
+                  x: -40
+                  y: 512
+                  text_font: nunito_20
                   text_color: misty_blue
               - label:
                   id: clawd_m_session_num
                   text: "0"
-                  x: 22
-                  y: 330
+                  x: 37
+                  y: 528
                   text_font: nunito_72
                   text_color: ep_orange
               - label:
                   id: clawd_m_session_pct_sign
                   text: "%"
-                  x: 100
-                  y: 366
-                  text_font: nunito_36
+                  x: 167
+                  y: 552
+                  text_font: nunito_48
                   text_color: ep_orange
               - label:
                   id: clawd_m_session_min
                   text: "0"
                   align: TOP_RIGHT
-                  x: -66
-                  y: 350
+                  x: -110
+                  y: 560
                   text_font: nunito_48
                   text_color: white
               - label:
                   text: ${t_modern_min | default("min")}
                   align: TOP_RIGHT
-                  x: -24
-                  y: 372
-                  text_font: nunito_20
+                  x: -40
+                  y: 584
+                  text_font: nunito_24
                   text_color: misty_blue
               - bar:
                   id: clawd_m_session_bar
-                  x: 24
-                  y: 412
-                  width: 432
-                  height: 18
+                  x: 40
+                  y: 659
+                  width: 720
+                  height: 29
                   min_value: 0
                   max_value: 100
                   value: 0
-                  radius: 9
+                  radius: 14
                   bg_color: gray900
                   bg_opa: COVER
                   indicator:
                     bg_color: ep_orange
                     bg_opa: COVER
-                    radius: 9
+                    radius: 14
               # ===== Time-till-100% card =====
               - obj:
                   id: clawd_m_card_till
-                  x: 24
-                  y: 450
-                  width: 432
-                  height: 100
-                  radius: 16
+                  x: 40
+                  y: 720
+                  width: 720
+                  height: 160
+                  radius: 26
                   border_width: 0
                   bg_color: slate_blue_gray
                   bg_opa: COVER
@@ -176,56 +173,56 @@ lvgl:
                   widgets:
                     - label:
                         text: ${t_modern_till | default("Time till 100%")}
-                        x: 18
-                        y: 16
-                        text_font: nunito_14
+                        x: 30
+                        y: 26
+                        text_font: nunito_20
                         text_color: amber
                     - label:
                         id: clawd_m_till_eta
                         text: ""
-                        x: 18
-                        y: 40
-                        text_font: nunito_14
+                        x: 30
+                        y: 64
+                        text_font: nunito_20
                         text_color: misty_blue
                     - label:
                         id: clawd_m_till_num
                         text: "0"
                         align: TOP_RIGHT
-                        x: -70
-                        y: 14
+                        x: -117
+                        y: 22
                         text_font: nunito_48
                         text_color: amber
                     - label:
                         text: ${t_modern_min | default("min")}
                         align: TOP_RIGHT
-                        x: -22
-                        y: 34
-                        text_font: nunito_20
+                        x: -37
+                        y: 46
+                        text_font: nunito_24
                         text_color: amber
                     - bar:
                         id: clawd_m_till_bar
-                        x: 18
-                        y: 74
-                        width: 396
-                        height: 12
+                        x: 30
+                        y: 118
+                        width: 660
+                        height: 19
                         min_value: 0
                         max_value: 100
                         value: 0
-                        radius: 6
+                        radius: 10
                         bg_color: gray900
                         bg_opa: COVER
                         indicator:
                           bg_color: amber
                           bg_opa: COVER
-                          radius: 6
+                          radius: 10
               # ===== Burn-rate card (5m + 30m) =====
               - obj:
                   id: clawd_m_card_burn
-                  x: 24
-                  y: 562
-                  width: 209
-                  height: 96
-                  radius: 16
+                  x: 40
+                  y: 899
+                  width: 348
+                  height: 154
+                  radius: 26
                   border_width: 0
                   bg_color: slate_blue_gray
                   bg_opa: COVER
@@ -233,45 +230,45 @@ lvgl:
                   widgets:
                     - label:
                         text: ${t_modern_burn | default("Burn Rate")}
-                        x: 16
-                        y: 14
-                        text_font: nunito_14
+                        x: 27
+                        y: 22
+                        text_font: nunito_20
                         text_color: white
                     - label:
                         id: clawd_m_burn5
                         text: "0"
-                        x: 16
-                        y: 40
-                        text_font: nunito_24
+                        x: 27
+                        y: 64
+                        text_font: nunito_36
                         text_color: white
                     - label:
                         text: ${t_modern_burn5_unit | default("%/h  5 min")}
-                        x: 16
-                        y: 70
-                        text_font: nunito_12
+                        x: 27
+                        y: 112
+                        text_font: nunito_18
                         text_color: misty_blue
                     - label:
                         id: clawd_m_burn30
                         text: "0"
-                        x: 127
-                        y: 40
-                        text_font: nunito_24
+                        x: 233
+                        y: 64
+                        text_font: nunito_36
                         text_color: white
                     - label:
                         text: ${t_modern_burn30_unit | default("%/h  30 min")}
-                        x: 127
-                        y: 70
-                        text_font: nunito_12
+                        x: 233
+                        y: 112
+                        text_font: nunito_18
                         text_color: misty_blue
               # ===== Will-hit-limit card (runway verdict) =====
               - obj:
                   id: clawd_m_card_hit
-                  x: 247
-                  y: 562
-                  width: 209
-                  height: 96
-                  radius: 16
-                  border_width: 1
+                  x: 412
+                  y: 899
+                  width: 348
+                  height: 154
+                  radius: 26
+                  border_width: 2
                   border_color: ep_green
                   bg_color: black
                   bg_opa: COVER
@@ -285,25 +282,25 @@ lvgl:
                     - label:
                         id: clawd_m_hit_label
                         text: ${t_modern_hit | default("Will hit limit")}
-                        x: 16
-                        y: 16
-                        text_font: nunito_14
+                        x: 27
+                        y: 26
+                        text_font: nunito_20
                         text_color: ep_green
                     - label:
                         id: clawd_m_hit_num
                         text: ""
-                        x: 16
-                        y: 46
-                        text_font: nunito_18
+                        x: 27
+                        y: 74
+                        text_font: nunito_24
                         text_color: ep_green
               # ===== Weekly card =====
               - obj:
                   id: clawd_m_card_weekly
-                  x: 24
-                  y: 670
-                  width: 209
-                  height: 116
-                  radius: 16
+                  x: 40
+                  y: 1072
+                  width: 348
+                  height: 186
+                  radius: 26
                   border_width: 0
                   bg_color: slate_blue_gray
                   bg_opa: COVER
@@ -311,41 +308,41 @@ lvgl:
                   widgets:
                     - label:
                         text: ${t_modern_weekly | default("Weekly")}
-                        x: 16
-                        y: 14
-                        text_font: nunito_14
+                        x: 27
+                        y: 22
+                        text_font: nunito_20
                         text_color: white
                     - label:
                         id: clawd_m_weekly_reset
                         text: ""
                         align: TOP_RIGHT
-                        x: -16
-                        y: 14
-                        text_font: nunito_14
+                        x: -27
+                        y: 22
+                        text_font: nunito_20
                         text_color: misty_blue
                     - label:
                         id: clawd_m_weekly_num
                         text: "0%"
-                        x: 16
-                        y: 38
-                        text_font: nunito_42
+                        x: 27
+                        y: 61
+                        text_font: nunito_48
                         text_color: ep_green
                     - bar:
                         id: clawd_m_weekly_bar
-                        x: 16
-                        y: 96
-                        width: 177
-                        height: 10
+                        x: 27
+                        y: 154
+                        width: 295
+                        height: 16
                         min_value: 0
                         max_value: 100
                         value: 0
-                        radius: 5
+                        radius: 8
                         bg_color: gray900
                         bg_opa: COVER
                         indicator:
                           bg_color: ep_green
                           bg_opa: COVER
-                          radius: 5
+                          radius: 8
               # ===== Extra card =====
               # NOTE: the credits label is `clawd_m_extra_cr`, NOT
               # clawd_m_extra_credits — that id is already taken by the HA
@@ -353,11 +350,11 @@ lvgl:
               # refresh script writes this label from that sensor's state.
               - obj:
                   id: clawd_m_card_extra
-                  x: 247
-                  y: 670
-                  width: 209
-                  height: 116
-                  radius: 16
+                  x: 412
+                  y: 1072
+                  width: 348
+                  height: 186
+                  radius: 26
                   border_width: 0
                   bg_color: slate_blue_gray
                   bg_opa: COVER
@@ -365,41 +362,41 @@ lvgl:
                   widgets:
                     - label:
                         text: ${t_modern_extra | default("Extra")}
-                        x: 16
-                        y: 14
-                        text_font: nunito_14
+                        x: 27
+                        y: 22
+                        text_font: nunito_20
                         text_color: white
                     - label:
                         id: clawd_m_extra_cr
                         text: ""
                         align: TOP_RIGHT
-                        x: -16
-                        y: 14
-                        text_font: nunito_14
+                        x: -27
+                        y: 22
+                        text_font: nunito_20
                         text_color: misty_blue
                     - label:
                         id: clawd_m_extra_num
                         text: "0%"
-                        x: 16
-                        y: 38
-                        text_font: nunito_42
+                        x: 27
+                        y: 61
+                        text_font: nunito_48
                         text_color: crimson
                     - bar:
                         id: clawd_m_extra_bar
-                        x: 16
-                        y: 96
-                        width: 177
-                        height: 10
+                        x: 27
+                        y: 154
+                        width: 295
+                        height: 16
                         min_value: 0
                         max_value: 100
                         value: 0
-                        radius: 5
+                        radius: 8
                         bg_color: gray900
                         bg_opa: COVER
                         indicator:
                           bg_color: crimson
                           bg_opa: COVER
-                          radius: 5
+                          radius: 8
 
 # --- refresh: push backend compute IDs + own HA sensors into the widgets ---
 # Top-level (merges with the device config's other script:/interval: blocks).
@@ -412,11 +409,12 @@ script:
           text: !lambda 'return id(clawd_m_session_pct).has_state() ? to_string((int) id(clawd_m_session_pct).state) : std::string("0");'
       # Re-anchor the "%" sign just right of the session number's MEASURED width
       # so it hugs the digits whether usage is 1, 2 or 3 digits (a fixed x would
-      # gap on "8" and overlap on "100"). 22 = the number's left x; +4 px lede.
+      # gap on "8" and overlap on "100"). 37 = the number's left x; +7 px lede
+      # (both x1.6667 of the 480-base's 22 + 4).
       - lambda: |-
           lv_obj_t *num = id(clawd_m_session_num);
           lv_obj_update_layout(num);
-          lv_obj_set_x(id(clawd_m_session_pct_sign), 22 + lv_obj_get_width(num) + 4);
+          lv_obj_set_x(id(clawd_m_session_pct_sign), 37 + lv_obj_get_width(num) + 7);
       - lvgl.bar.update:
           id: clawd_m_session_bar
           value: !lambda 'return id(clawd_m_session_pct).has_state() ? (int) id(clawd_m_session_pct).state : 0;'
