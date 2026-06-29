@@ -35,12 +35,26 @@ substitutions:
   #  have to (and should never) edit anything under ui/. Replace the entity
   #  ids below with the ones from your own "Claude Usage" device.
   # ======================================================================
-  ha_session_usage: "sensor.claude_usage_stefan_pro_session_usage"        # session limit used, %
-  ha_week_usage:    "sensor.claude_usage_stefan_pro_week_usage"           # weekly limit used, %
-  ha_extra_usage:   "sensor.claude_usage_stefan_pro_extra_usage"          # extra usage, % (may be disabled in HA)
-  ha_extra_credits: "sensor.claude_usage_stefan_pro_extra_usage_credits"  # extra usage, credits
-  ha_session_reset: "sensor.claude_usage_stefan_pro_session_reset_time"   # session reset, timestamp
-  ha_weekly_reset:  "sensor.claude_usage_stefan_pro_weekly_reset_time"    # weekly reset, timestamp
+  # ---- ha-clawdmeter integration: ONE HA device per Claude account --------
+  #  All entities of that device share the same slug ${ha_account}. Set it
+  #  ONCE here and every binding below follows; to track a different account
+  #  you normally change ONLY this line. ha_account = the entity_id stem
+  #  WITHOUT the "sensor." domain and WITHOUT the per-entity suffix. For the HA
+  #  device "Claude Stefan (Max)" it is claude_stefan_max (find it in HA via
+  #  Developer Tools -> States: take any of this device's sensors and drop the
+  #  trailing suffix). Entity_ids derive from each sensor's NAME, so a few
+  #  suffixes are NOT obvious: "Weekly usage" -> weekly_usage, "Extra usage
+  #  credits" -> extra_usage_credits, the resets are session_reset / weekly_reset
+  #  (no _time). If HA deduped a single entity (e.g. a _2 suffix) override just
+  #  that one line below with its real id.
+  ha_account: "claude_stefan_max"   # <<< normally the ONLY line you edit
+
+  ha_session_usage: "sensor.${ha_account}_session_usage"        # session limit used, %
+  ha_week_usage:    "sensor.${ha_account}_weekly_usage"         # weekly limit used, %
+  ha_extra_usage:   "sensor.${ha_account}_extra_usage"          # extra usage, % (may be disabled in HA)
+  ha_extra_credits: "sensor.${ha_account}_extra_usage_credits"  # extra usage, credits
+  ha_session_reset: "sensor.${ha_account}_session_reset"        # session reset, timestamp
+  ha_weekly_reset:  "sensor.${ha_account}_weekly_reset"         # weekly reset, timestamp
 
   # ---- Page-1 design (compile-time): classic = creature + stats panel,
   #      modern = dark card layout. Selects ui/clawdmeter/layout_${design}.yaml.
