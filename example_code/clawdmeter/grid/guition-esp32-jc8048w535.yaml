@@ -24,21 +24,25 @@
 # right half.
 
 substitutions:
-  # ======================================================================
-  #  HOME ASSISTANT DATA SOURCE — edit ONLY this block to adapt to your HA.
-  # ----------------------------------------------------------------------
-  #  These are the raw Home Assistant entities the Clawdmeter reads. They
-  #  are the ONLY thing you need to change for your own setup — every
-  #  ui/clawdmeter/* file receives them from here via `vars:`, so you never
-  #  have to (and should never) edit anything under ui/. Replace the entity
-  #  ids below with the ones from your own "Claude Usage" device.
-  # ======================================================================
-  ha_session_usage: "sensor.claude_usage_stefan_pro_session_usage"        # session limit used, %
-  ha_week_usage:    "sensor.claude_usage_stefan_pro_week_usage"           # weekly limit used, %
-  ha_extra_usage:   "sensor.claude_usage_stefan_pro_extra_usage"          # extra usage, % (may be disabled in HA)
-  ha_extra_credits: "sensor.claude_usage_stefan_pro_extra_usage_credits"  # extra usage, credits
-  ha_session_reset: "sensor.claude_usage_stefan_pro_session_reset_time"   # session reset, timestamp
-  ha_weekly_reset:  "sensor.claude_usage_stefan_pro_weekly_reset_time"    # weekly reset, timestamp
+  # ---- ha-clawdmeter integration: ONE HA device per Claude account --------
+  #  All entities of that device share the same slug ${ha_account}. Set it ONCE
+  #  here and every binding below follows; to track a different account you
+  #  normally change ONLY this line. ha_account = the entity_id stem WITHOUT the
+  #  "sensor." domain and WITHOUT the per-entity suffix. Real format:
+  #  claude_<name>_<plan>  (e.g. claude_jane_pro, claude_stefan_max). Find yours
+  #  in HA -> Developer Tools -> States: filter "sensor.claude", take the common
+  #  prefix before "_session_usage". Entity_ids derive from each sensor's NAME,
+  #  so a few suffixes are NOT obvious: "Weekly usage" -> weekly_usage, "Extra
+  #  usage credits" -> extra_usage_credits, resets are session_reset / weekly_reset
+  #  (no _time). Override a single line below only if HA deduped that entity (_2).
+  ha_account: "claude_yourname_yourplan"   # <<< PLACEHOLDER - replace before flashing
+
+  ha_session_usage: "sensor.${ha_account}_session_usage"        # session limit used, %
+  ha_week_usage:    "sensor.${ha_account}_weekly_usage"         # weekly limit used, %
+  ha_extra_usage:   "sensor.${ha_account}_extra_usage"          # extra usage, % (may be disabled in HA)
+  ha_extra_credits: "sensor.${ha_account}_extra_usage_credits"  # extra usage, credits
+  ha_session_reset: "sensor.${ha_account}_session_reset"        # session reset, timestamp
+  ha_weekly_reset:  "sensor.${ha_account}_weekly_reset"         # weekly reset, timestamp
 
   icon_font: mdi_icons_40
   text_font: nunito_20
@@ -111,35 +115,16 @@ packages:
       # gets livelier as the burn rate climbs (else it stays stuck in idle).
       session_pct_entity: $ha_session_usage
 
-  # Burn rate 5m — COMPUTED on the ESP from raw usage %, exposed as a device
-  # sensor (ESPHome dashboard), not drawn on the display.
-  clawd_burn5: !include
-    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
+  # Phase 2 (render-only): the burn rates, time-to-100%/ETA and runway are NO LONGER
+  # computed on the ESP - the ha-clawdmeter integration supplies them precomputed.
+  # This include mirrors those integration entities back onto the exact ids the
+  # stats panel / pace frame read (clawd_burn5_rate, clawd_burn30_rate,
+  # clawd_ttl_time_to_100, clawd_ttl_eta_clock, clawd_rw_runway, clawd_rw_runway_ratio,
+  # clawd_pf_band). Replaces the old clawd_burn5 / clawd_burn30 / clawd_ttl / clawd_rw.
+  clawd_render: !include
+    file: esphome-modular-lvgl-buttons/ui/clawdmeter/render_from_integration.yaml
     vars:
-      uid: clawd_burn5
-      name: ${t_name_burn5 | default("Burn Rate 5m")}
-      window_min: 5
-      source_entity: $ha_session_usage
-
-  # Burn rate 30m — same, also feeds the time-to-100% calc below.
-  clawd_burn30: !include
-    file: esphome-modular-lvgl-buttons/ui/clawdmeter/usage_rate.yaml
-    vars:
-      uid: clawd_burn30
-      name: ${t_name_burn30 | default("Burn Rate 30m")}
-      window_min: 30
-      source_entity: $ha_session_usage
-
-  # Time-to-100% — COMPUTED on the ESP from raw usage % + the 30m burn rate
-  # (exactly like the HA template), exposed as a device text sensor.
-  clawd_ttl: !include
-    file: esphome-modular-lvgl-buttons/ui/clawdmeter/time_to_100.yaml
-    vars:
-      uid: clawd_ttl
-      rate_id: clawd_burn30_rate
-      source_entity: $ha_session_usage
-      name: ${t_name_ttl | default("Session Time To 100")}
-      eta_name: ${t_name_eta | default("Session 100% At")}
+      ha_account: ${ha_account}
 
   # Absolute SESSION-reset wall-clock time ("HH:MM") + "reset in xx m", derived
   # on the ESP from the raw reset-time timestamp and the device timezone.
@@ -161,20 +146,8 @@ packages:
       name: ${t_name_weekly_reset_time | default("Weekly Reset Time")}
       reset_in_name: ${t_name_weekly_reset_in | default("Weekly Reset In")}
 
-  # Runway — COMPUTED on the ESP: compares "time until session reset" against
-  # "time until the limit is hit at the current 30m burn rate" and emits a verdict
-  # ("No · Nm to spare" / "Yes · Nm early" / "No") + a pace ratio. Always computed and
-  # exposed as device entities. The on-display line is OFF here by default — set
-  # `show_runway: "true"` on clawd_stats below to draw it (see grid-portrait).
-  clawd_rw: !include
-    file: esphome-modular-lvgl-buttons/ui/clawdmeter/runway.yaml
-    vars:
-      uid: clawd_rw
-      rate_id: clawd_burn30_rate
-      resetin_id: clawd_reset_reset_in_min
-      source_entity: $ha_session_usage
-      name: ${t_name_runway | default("Session Runway")}
-      ratio_name: ${t_name_runway_ratio | default("Session Runway Pace")}
+  # Runway verdict + pace ratio now come precomputed from the integration via
+  # clawd_render above (clawd_rw_runway / clawd_rw_runway_ratio); no on-device calc.
 
   # Pace frame (Option A, OPTIONAL / default-off elsewhere) — colours a thin
   # border on the creature's OUTER TILE from the runway pace ratio
@@ -192,7 +165,9 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/pace_frame.yaml
     vars:
       uid: clawd_pf
-      ratio_id: clawd_rw_runway_ratio
+      ratio_id: clawd_pf_band
+      green_max: "0.5"
+      orange_max: "1.5"
       target_id: clawd_c_creature_root
       enabled: "true"
       width: "3"

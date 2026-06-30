@@ -37,19 +37,25 @@ into a green → orange → red status border.
   <sub><i>The "Modern Dark" layout (480×800) — one of nine pixel-tuned modern formats. SDL preview render.</i></sub>
 </p>
 
-> **Data source required.** The Clawdmeter reads usage from **Home Assistant
-> sensors** — it does not scrape Claude itself. You need a producer for those
-> sensors: either the
-> [trickv/hass-claude-usage](https://github.com/trickv/hass-claude-usage)
-> integration **or your own implementation** (any HA template/REST/MQTT sensor
-> exposing the same usage % + reset-timestamp values).
+> **Data source required.** The Clawdmeter is **render-only** — it reads
+> precomputed **Home Assistant entities** and draws them; it does not scrape
+> Claude or derive burn rate / time-to-100 % / runway itself. Those entities
+> come from the
+> [corgan2222/ha-clawdmeter](https://github.com/corgan2222/ha-clawdmeter)
+> integration, which polls the Anthropic usage API and exposes ~29 entities per
+> Claude account — raw usage **plus** all derived metrics (burn rate, usage
+> rate, time-to-limit, runway, pace) — under one HA device named
+> `Claude <name> (<plan>)`. Bind a config to it with the single **`ha_account`**
+> substitution set to that device's slug (e.g. `claude_jane_pro`).
 
 - 📖 **[ui/clawdmeter/README.md](ui/clawdmeter/README.md)** — data flow (where
-  the entities come from, what the device computes, when which animation is
+  the entities come from, what the device still renders itself — creature
+  animation, history charts, the live reset countdown — when which animation is
   shown) + full file/variable reference.
 - 🧩 **Two ways to build it:** an **all-in-one** single include (compact,
-  resolution-agnostic, five HA entities) or a **modular grid** of tiles (full
-  metric set + Runway line + pace frame). See the
+  resolution-agnostic — session / weekly bars + reset countdowns + creature) or
+  a **modular grid** of tiles (full metric set: burn rate, time-to-100 %, Runway
+  line + pace frame). See the
   [comparison](ui/clawdmeter/README.md#all-in-one-vs-modular-grid).
 - 🎨 **Two looks, nine formats:** a `classic` creature-and-panel layout or the
   **`modern`** dark-card design — the latter pixel-tuned for **320×240, 320×480,
@@ -118,13 +124,15 @@ repo into that folder.
    [`example_code/clawdmeter/`](example_code/clawdmeter/) — start with
    [`all-in-one/`](example_code/clawdmeter/all-in-one/), it is the simplest — up
    into `/config/esphome/`, rename it e.g. `my-panel.yaml`, and edit only the
-   `substitutions:` block at the top (your HA sensor IDs, board rotation).
+   `substitutions:` block at the top (your `ha_account` slug, board rotation).
 
-   > **Clawdmeter needs a usage data source.** Those sensor IDs come from Home
-   > Assistant — install the
-   > [trickv/hass-claude-usage](https://github.com/trickv/hass-claude-usage)
-   > integration, or expose your own sensors with the same usage % +
-   > reset-timestamp values. See
+   > **Clawdmeter needs a usage data source.** Install the
+   > [corgan2222/ha-clawdmeter](https://github.com/corgan2222/ha-clawdmeter)
+   > integration — it polls the Anthropic usage API and exposes the precomputed
+   > usage entities under one HA device per Claude account. Set the config's
+   > `ha_account` substitution to that device's slug (e.g. `claude_jane_pro`);
+   > find it in HA → Developer Tools → States, filter `sensor.claude`, and take
+   > the common prefix before `_session_usage`. See
    > [ui/clawdmeter/README.md](ui/clawdmeter/README.md) for the entity reference.
 
 3. **Add secrets.** In the ESPHome dashboard open **Secrets** (top-right ⋮ menu)
@@ -367,7 +375,7 @@ Additional UI modules under `ui/` for specific integrations:
 
 | Module | Description |
 |---|---|
-| `ui/clawdmeter/` | 🐾 **Animated Claude token-usage display** (this fork). Pixel-art creature whose mood tracks your burn rate + a stats panel with usage bars, time-to-100 %, reset clocks, Runway and an optional colour-coded pace frame. 4 languages (en/de/fr/es). Needs an HA usage source — see [ui/clawdmeter/README.md](ui/clawdmeter/README.md). |
+| `ui/clawdmeter/` | 🐾 **Animated Claude token-usage display** (this fork). Pixel-art creature whose mood tracks your usage + a stats panel with usage bars, time-to-100 %, reset clocks, Runway and an optional colour-coded pace frame. 4 languages (en/de/fr/es). Render-only — needs the [ha-clawdmeter](https://github.com/corgan2222/ha-clawdmeter) HA integration; see [ui/clawdmeter/README.md](ui/clawdmeter/README.md). |
 | `ui/clock/flip_clock.yaml` | Gluqlo-style flip clock widget |
 | `ui/weather/today.yaml` | Current weather tile from HA weather entity |
 | `ui/weather/forecast.yaml` | 4-day forecast widget via `weather.get_forecasts` |

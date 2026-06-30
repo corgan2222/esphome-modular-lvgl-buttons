@@ -25,6 +25,14 @@ driving a panel. We compile the same layout the device uses, run the resulting
 native binary under WSLg, and screenshot the window. This catches layout bugs
 (overflow, overlap, off-screen widgets) on any resolution in seconds.
 
+These are pure **layout** shots: the SDL host never talks to Home Assistant, so
+there is no live Claude-usage data behind the widgets. On a real device that data
+comes from the `ha-clawdmeter` HA integration (it polls the Anthropic usage API
+and exposes the raw usage % plus every precomputed metric); the ESP itself is
+render-only and just draws those values. The host has none of that, so tiles
+render *unavailable* / 0% unless an on-device synthetic feed is switched on
+(`sim_feed=1`, see `run_data.sh`).
+
 ## One-time setup (WSL Ubuntu-24.04 + WSLg)
 
 The runner lives on the Windows filesystem but **must run inside WSL** — the
@@ -100,7 +108,11 @@ Plus, every harness adds:
 * `on_boot` priority `-200` → `lvgl.page.show: main_page`, so we never
   accidentally capture an overlay/info page.
 * HA entity ids are **placeholders** in the grid harnesses — the host never
-  connects to HA. Swap them for your own ids on a real device.
+  connects to HA, so the values go nowhere. On a real device you don't hand-set
+  these per-entity ids: the grid configs bind to the `ha-clawdmeter` integration
+  through a single `ha_account` substitution (e.g. `claude_jane_pro`), and
+  `ui/clawdmeter/render_from_integration.yaml` maps the integration's precomputed
+  entities onto the exact ids the tiles draw.
 
 ### Single vs. square vs. grid
 
@@ -113,9 +125,16 @@ Plus, every harness adds:
   `clawd_stats_h: 50%`, so the labels don't wrap and the stats panel isn't
   cramped under the creature. Keep it in sync with the sunton device YAML.
 * **grid** / **grid_portrait** mirror the
-  `grid/guition-esp32-p4-jc4880p443*.yaml` device configs: the engine
-  + creature + the backend rate/clock/anim packages + the on-display stats panel,
-  each placing itself into a cell of a 4x4 page grid.
+  `grid/guition-esp32-p4-jc4880p443*.yaml` device configs: the creature engine,
+  the creature, the on-device reset clock, the anim selector, and the on-display
+  stats panel, each placing itself into a cell of a 4x4 page grid. On a real
+  device the burn-rate / time-to-100 / runway / pace numbers are **not** derived
+  on the ESP — they are read already-computed from the `ha-clawdmeter`
+  integration (wired by `ui/clawdmeter/render_from_integration.yaml`); only the
+  creature engine, the history charts, the reset clock and the repaint loop run
+  on the device. The SDL harness has no integration, so it stands in on-device
+  rate/ttl tiles that stay blank until the synthetic feed (`sim_feed=1`) drives
+  them.
 
 ## capture.py
 

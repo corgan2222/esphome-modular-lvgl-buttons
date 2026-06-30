@@ -1,0 +1,190 @@
+# esphome-modular-lvgl-buttons/ui/clawdmeter/render_from_integration.yaml
+# PHASE 2 (render-only): mirror the ha-clawdmeter integration's PRECOMPUTED values
+# back onto the exact ids the modern layout already reads, so layout_modern.yaml and
+# pace_frame.yaml stay untouched. This REPLACES the on-device usage_rate / time_to_100
+# / runway compute includes — the integration now does that math server-side.
+#
+# It (re)produces, with the SAME types as before:
+#   sensor      clawd_burn5_rate        <- sensor.${ha_account}_burn_rate_5_min   (%/h)
+#   sensor      clawd_burn30_rate       <- sensor.${ha_account}_burn_rate_30_min  (%/h)
+#   text_sensor clawd_ttl_time_to_100   <- sensor.${ha_account}_time_to_limit     (min)
+#   text_sensor clawd_ttl_eta_clock     <- sensor.${ha_account}_session_limit_eta (ISO ts -> HH:MM)
+#   text_sensor clawd_rw_runway         <- binary limit_reached_before_reset + runway_margin
+#   sensor      clawd_rw_runway_ratio   <- binary limit_reached_before_reset (0/2 for the hit-card)
+#   sensor      clawd_pf_band           <- sensor.${ha_account}_pace_frame enum (0/1/2 for pace_frame)
+#
+# All HA mirrors are internal: true (the integration already exposes the real values
+# in HA — no duplicate device entities). The id()-readers in layout_modern.yaml /
+# pace_frame.yaml are unaffected. Lang strings (t_ttl_*, t_runway_*) come from the
+# active lang pack just like the old compute files; defaults are English.
+#
+# vars:
+#   ha_account  required  the integration device slug (e.g. claude_stefan_max);
+#                         every entity_id below is sensor.${ha_account}_<suffix>.
+#   time_id     optional  unused here (HH:MM uses from_epoch_local / device TZ).
+
+sensor:
+  # --- Burn rates: raw HA mirror straight onto the layout-read ids (%/h) ---
+  - platform: homeassistant
+    id: clawd_burn5_rate
+    entity_id: sensor.${ha_account}_burn_rate_5_min
+    internal: true
+  - platform: homeassistant
+    id: clawd_burn30_rate
+    entity_id: sensor.${ha_account}_burn_rate_30_min
+    internal: true
+
+  # --- Time-to-limit source (numeric minutes; no state when HA is "unknown") ---
+  - platform: homeassistant
+    id: clawd_ttl_ttl_src
+    entity_id: sensor.${ha_account}_time_to_limit
+    internal: true
+
+  # --- Runway margin source (signed minutes; magnitude only is used) ---
+  - platform: homeassistant
+    id: clawd_rw_margin_src
+    entity_id: sensor.${ha_account}_runway_margin
+    internal: true
+
+  # --- Hit-card colour ratio: 0.0 (safe/green) or 2.0 (over) from the binary.
+  #     The layout tests this id > 1.0f; deriving it from the authoritative
+  #     "limit reached before reset" binary avoids any pace-ratio direction guess. ---
+  - platform: template
+    id: clawd_rw_runway_ratio
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      // No binary state yet -> keep last (matches the old runway_ratio returning {}).
+      if (!id(clawd_rw_over_src).has_state()) return {};
+      return id(clawd_rw_over_src).state ? 2.0f : 0.0f;
+
+  # --- pace_frame band 0/1/2 from the integration's pace_frame enum.
+  #     pace_frame.yaml is included with green_max:0.5 / orange_max:1.5, so:
+  #       green->0.0 (<0.5 = band0), orange->1.0 (<1.5 = band1), red->2.0 (>=1.5 = band2).
+  #     unknown -> NaN -> pace_frame's isnan gate clears the border (nothing to say). ---
+  - platform: template
+    id: clawd_pf_band
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      const std::string &e = id(clawd_pf_enum_src).state;
+      if (e == "green")  return 0.0f;
+      if (e == "orange") return 1.0f;
+      if (e == "red")    return 2.0f;
+      return NAN;
+
+binary_sensor:
+  # --- "Limit reached before reset" = the runway_over boolean (on = will hit limit). ---
+  - platform: homeassistant
+    id: clawd_rw_over_src
+    entity_id: binary_sensor.${ha_account}_limit_reached_before_reset
+    internal: true
+
+text_sensor:
+  # --- pace_frame enum source (green/orange/red) ---
+  - platform: homeassistant
+    id: clawd_pf_enum_src
+    entity_id: sensor.${ha_account}_pace_frame
+    internal: true
+
+  # --- Time-to-100 text "in N min": format the integration's time_to_limit (minutes).
+  #     Keep-last on dropout/idle so the big number freezes instead of flickering "--". ---
+  - platform: template
+    id: clawd_ttl_time_to_100
+    internal: true
+    update_interval: 10s
+    lambda: |-
+      if (!id(clawd_ttl_ttl_src).has_state() || std::isnan(id(clawd_ttl_ttl_src).state)) {
+        if (id(clawd_ttl_time_to_100).has_state() &&
+            id(clawd_ttl_time_to_100).state != "${t_ttl_unknown | default("unknown")}")
+          return id(clawd_ttl_time_to_100).state;
+        return std::string("${t_ttl_unknown | default("unknown")}");
+      }
+      char buf[24];
+      snprintf(buf, sizeof(buf), "${t_ttl_mins | default("in %d min")}",
+               (int) id(clawd_ttl_ttl_src).state);
+      return std::string(buf);
+
+  # --- 100%-at ETA source (ISO8601 timestamp string from the integration) ---
+  - platform: homeassistant
+    id: clawd_ttl_eta_src
+    entity_id: sensor.${ha_account}_session_limit_eta
+    internal: true
+
+  # --- ETA clock "HH:MM": parse the integration's ISO instant and re-localize to the
+  #     device timezone. Parser is 1:1 from session_reset_clock.yaml (handles ±HH:MM / Z).
+  #     unknown / parse-fail -> keep last, else "--:--". ---
+  - platform: template
+    id: clawd_ttl_eta_clock
+    internal: true
+    update_interval: 10s
+    lambda: |-
+      const std::string &v = id(clawd_ttl_eta_src).state;
+      if (v.empty() || v == "unknown" || v == "unavailable") {
+        if (id(clawd_ttl_eta_clock).has_state() && id(clawd_ttl_eta_clock).state != "--:--")
+          return id(clawd_ttl_eta_clock).state;
+        return std::string("--:--");
+      }
+      int Y, Mo, D, h, mi, s;
+      if (sscanf(v.c_str(), "%d-%d-%dT%d:%d:%d", &Y, &Mo, &D, &h, &mi, &s) != 6) {
+        if (id(clawd_ttl_eta_clock).has_state() && id(clawd_ttl_eta_clock).state != "--:--")
+          return id(clawd_ttl_eta_clock).state;
+        return std::string("--:--");
+      }
+      // Trailing UTC offset (Z or ±HH:MM) -> true UTC epoch.
+      int off_min = 0;
+      size_t tp = v.find('T');
+      if (tp != std::string::npos) {
+        std::string tail = v.substr(tp);
+        if (tail.find('Z') == std::string::npos) {
+          size_t pp = tail.find_first_of("+-", 1);
+          if (pp != std::string::npos) {
+            int sgn = (tail[pp] == '-') ? -1 : 1;
+            int oh = 0, om = 0;
+            sscanf(tail.c_str() + pp + 1, "%d:%d", &oh, &om);
+            off_min = sgn * (oh * 60 + om);
+          }
+        }
+      }
+      // civil-from-days (Howard Hinnant) -> UTC epoch -> localize -> HH:MM
+      long y = Y; y -= (Mo <= 2);
+      long era = (y >= 0 ? y : y - 399) / 400;
+      unsigned yoe = (unsigned) (y - era * 400);
+      unsigned doy = (153u * (Mo + (Mo > 2 ? -3 : 9)) + 2u) / 5u + D - 1;
+      unsigned doe = yoe * 365u + yoe / 4u - yoe / 100u + doy;
+      long days = era * 146097L + (long) doe - 719468L;
+      time_t epoch = (time_t) (days * 86400L + h * 3600 + mi * 60 + s - off_min * 60);
+      ESPTime t = ESPTime::from_epoch_local(epoch);
+      char buf[8];
+      snprintf(buf, sizeof(buf), "%02d:%02d", t.hour, t.minute);
+      return std::string(buf);
+
+  # --- Runway verdict, layout-parser compatible ("<word> · <detail>"). Word + colour
+  #     come from the limit-reached binary (authoritative), the minutes from |runway_margin|.
+  #     over -> "Yes · Nm early"; not over (+margin) -> "No · Nm to spare"; else "No";
+  #     no binary state -> keep last, else unknown. Reuses the t_runway_* lang strings. ---
+  - platform: template
+    id: clawd_rw_runway
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      if (!id(clawd_rw_over_src).has_state()) {
+        if (id(clawd_rw_runway).has_state() &&
+            id(clawd_rw_runway).state != "${t_runway_unknown | default("unknown")}")
+          return id(clawd_rw_runway).state;
+        return std::string("${t_runway_unknown | default("unknown")}");
+      }
+      bool margin_ok = id(clawd_rw_margin_src).has_state() &&
+                       !std::isnan(id(clawd_rw_margin_src).state);
+      int m = 0;
+      if (margin_ok) { m = (int) id(clawd_rw_margin_src).state; if (m < 0) m = -m; }
+      char buf[32];
+      if (id(clawd_rw_over_src).state) {
+        snprintf(buf, sizeof(buf), "${t_runway_short | default("Yes · %dm early")}", m);
+        return std::string(buf);
+      }
+      if (margin_ok) {
+        snprintf(buf, sizeof(buf), "${t_runway_spare | default("No · %dm to spare")}", m);
+        return std::string(buf);
+      }
+      return std::string("${t_runway_clear | default("No")}");
