@@ -4,6 +4,10 @@
 # boot and fits a square pixel-art canvas, so the same include works on every
 # supported display. See ui/clawdmeter/README.md.
 substitutions:
+  # ha-clawdmeter integration account slug. All entities resolve as
+  # sensor.${ha_account}_<suffix>. Real format claude_<name>_<plan>; find yours in
+  # HA -> Developer Tools -> States (common prefix before "_session_usage").
+  ha_account: "claude_yourname_yourplan"   # <<< PLACEHOLDER - replace before flashing
   icon_font: mdi_icons_40
   text_font: nunito_20
   text_color: white
@@ -55,6 +59,10 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
     vars:
       uid: clawd
+      session_pct_entity:   sensor.${ha_account}_session_usage
+      weekly_pct_entity:    sensor.${ha_account}_weekly_usage
+      session_reset_entity: sensor.${ha_account}_session_reset
+      weekly_reset_entity:  sensor.${ha_account}_weekly_reset
 
 lvgl:
   pages:

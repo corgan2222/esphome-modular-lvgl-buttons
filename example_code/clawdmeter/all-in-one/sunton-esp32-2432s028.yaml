@@ -8,6 +8,10 @@
 # declares its fonts inline, like its sunton-esp32-2432s028-display_modular.yaml
 # sibling — not the all-in-one theme/index.yaml used by the larger boards.
 substitutions:
+  # ha-clawdmeter integration account slug. All entities resolve as
+  # sensor.${ha_account}_<suffix>. Real format claude_<name>_<plan>; find yours in
+  # HA -> Developer Tools -> States (common prefix before "_session_usage").
+  ha_account: "claude_yourname_yourplan"   # <<< PLACEHOLDER - replace before flashing
   icon_font: mdi_icons_40
   # Smallest supported screen (320x240): the default nunito_20 makes the stats
   # labels wrap and the three labels + two bars overflow the stats box. A 14px
@@ -85,6 +89,10 @@ packages:
     file: esphome-modular-lvgl-buttons/ui/clawdmeter/remote.yaml
     vars:
       uid: clawd
+      session_pct_entity:   sensor.${ha_account}_session_usage
+      weekly_pct_entity:    sensor.${ha_account}_weekly_usage
+      session_reset_entity: sensor.${ha_account}_session_reset
+      weekly_reset_entity:  sensor.${ha_account}_weekly_reset
       # 320x240 is short: give the stats panel half the screen so the two bars
       # and their labels are not cramped under the creature. Same 4% top margin
       # as every other display (4% + 46% creature + 50% stats = 100%).
