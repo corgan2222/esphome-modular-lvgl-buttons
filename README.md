@@ -1,8 +1,18 @@
-# esphome-modular-lvgl-buttons
+<p align="center">
+  <img src="https://raw.githubusercontent.com/corgan2222/esphome-modular-lvgl-buttons/main/images/clawdmeter-esp32-header.png" alt="Clawdmeter ESP32" width="840">
+</p>
+
+<h1 align="center">Clawdmeter — esphome-modular-lvgl-buttons</h1>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![ESPHome](https://img.shields.io/badge/ESPHome-2026.6.0+-blue)](https://esphome.io)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41BDF5)](https://www.home-assistant.io/)
+
+<p align="center">
+  <a href="https://github.com/corgan2222/esphome-modular-lvgl-buttons"><img src="https://raw.githubusercontent.com/corgan2222/ha-clawdmeter/main/images/clawdmeter-esp-display.png" alt="Clawdmeter ESPHome display" height="40"></a>
+  <a href="https://github.com/corgan2222/ha-clawdmeter"><img src="https://raw.githubusercontent.com/corgan2222/ha-clawdmeter/main/images/clawdmeter-ha-integration.png" alt="Clawdmeter Home Assistant integration" height="40"></a>
+  <a href="https://github.com/corgan2222/lovelace-clawdmeter"><img src="https://raw.githubusercontent.com/corgan2222/ha-clawdmeter/main/images/clawdmeter-lovelace-card.png" alt="Clawdmeter Lovelace card" height="40"></a>
+</p>
 
 A modular component library for building touchscreen smart home control panels using [ESPHome](https://esphome.io/) + [LVGL](https://lvgl.io/) on cheap ESP32 displays.
 
