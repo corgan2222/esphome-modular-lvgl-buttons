@@ -109,7 +109,7 @@ interval:
       - lvgl.label.update:
           id: ${uid}_sess_lbl
           text: !lambda |-
-            int p = id(${uid}_session_pct).has_state() ? (int) id(${uid}_session_pct).state : 0;
+            int p = (id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state)) ? (int) id(${uid}_session_pct).state : 0;
             std::string clk = id(${session_clock_id}).has_state() ? id(${session_clock_id}).state : "--:--";
             char buf[72];
             if (id(${session_resetin_id}).has_state() && !std::isnan(id(${session_resetin_id}).state))
@@ -128,7 +128,7 @@ interval:
       - lvgl.label.update:
           id: ${uid}_week_lbl
           text: !lambda |-
-            int p = id(${uid}_week_pct).has_state() ? (int) id(${uid}_week_pct).state : 0;
+            int p = (id(${uid}_week_pct).has_state() && !std::isnan(id(${uid}_week_pct).state)) ? (int) id(${uid}_week_pct).state : 0;
             std::string clk = id(${weekly_clock_id}).has_state() ? id(${weekly_clock_id}).state : "--:--";
             char buf[48];
             snprintf(buf, sizeof(buf), "${t_fmt_weekly | default("Weekly %d%% - %s")}", p, clk.c_str());
@@ -151,7 +151,7 @@ interval:
       - lvgl.label.update:
           id: ${uid}_extra_lbl
           text: !lambda |-
-            int p = id(${uid}_extra_pct).has_state() ? (int) id(${uid}_extra_pct).state : 0;
+            int p = (id(${uid}_extra_pct).has_state() && !std::isnan(id(${uid}_extra_pct).state)) ? (int) id(${uid}_extra_pct).state : 0;
 
             // ---- Extra-credits de-glitch (hold last good, with a TTL) -------
             // The HA source sensor flaps between its real value and 0 /

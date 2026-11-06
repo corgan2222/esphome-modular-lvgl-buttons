@@ -236,7 +236,7 @@ script:
           lv_obj_set_x(id(clawd_m_session_pct_sign), 164 + lv_obj_get_width(num) + 3);
       - lvgl.bar.update:
           id: clawd_m_session_bar
-          value: !lambda 'return id(clawd_m_session_pct).has_state() ? (int) id(clawd_m_session_pct).state : 0;'
+          value: !lambda 'return (id(clawd_m_session_pct).has_state() && !std::isnan(id(clawd_m_session_pct).state)) ? (int) id(clawd_m_session_pct).state : 0;'
       - lvgl.label.update:
           id: clawd_m_session_reset
           text: !lambda |-
@@ -256,7 +256,7 @@ script:
             return i == j ? std::string("--") : s.substr(i, j - i);
       - lvgl.bar.update:
           id: clawd_m_till_bar
-          value: !lambda 'return id(clawd_m_session_pct).has_state() ? (int) id(clawd_m_session_pct).state : 0;'
+          value: !lambda 'return (id(clawd_m_session_pct).has_state() && !std::isnan(id(clawd_m_session_pct).state)) ? (int) id(clawd_m_session_pct).state : 0;'
       - lvgl.label.update:
           id: clawd_m_till_eta
           text: !lambda |-

@@ -205,7 +205,7 @@ script:
       - lvgl.label.update:
           id: ${uid}_session_lbl
           text: !lambda |-
-            int p = id(${uid}_session_pct).has_state() ? (int) id(${uid}_session_pct).state : 0;
+            int p = (id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state)) ? (int) id(${uid}_session_pct).state : 0;
             float r = id(${uid}_session_reset).state;
             char buf[48];
             if (std::isnan(r)) {
@@ -219,7 +219,7 @@ script:
       - lvgl.label.update:
           id: ${uid}_weekly_lbl
           text: !lambda |-
-            int p = id(${uid}_weekly_pct).has_state() ? (int) id(${uid}_weekly_pct).state : 0;
+            int p = (id(${uid}_weekly_pct).has_state() && !std::isnan(id(${uid}_weekly_pct).state)) ? (int) id(${uid}_weekly_pct).state : 0;
             float r = id(${uid}_weekly_reset).state;
             char buf[48];
             if (std::isnan(r)) {
