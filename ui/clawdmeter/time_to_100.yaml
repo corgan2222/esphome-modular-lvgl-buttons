@@ -30,6 +30,22 @@
 #   time_id        optional  id of the time: component (default system_time)
 #   eta_name       optional  entity name for the absolute "100% at HH:MM" sensor
 #                            (default "Session 100% At")
+#   hold_min       optional  how many minutes a previously computed answer may
+#                            stand in for missing inputs or a flat burn rate
+#                            (default 10). Holding keeps the tile steady across
+#                            a short dropout, but past that the number is no
+#                            longer an answer, it is a fossil, and the sensor
+#                            falls back to the unknown string. Set 0 to hold
+#                            indefinitely, which is what this file did before.
+
+globals:
+  # millis() of the last successful computation, 0 until there has been one.
+  # Only ever read as an unsigned difference, so the 49-day millis() wrap is
+  # handled by the arithmetic itself.
+  - id: ${uid}_ttl_seen
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
 sensor:
   - platform: homeassistant
@@ -46,22 +62,26 @@ text_sensor:
     lambda: |-
       // ESPHome template lambdas do not capture `this`; reach our own published
       // state via the component id (the id(...) form provides member access).
-      // inputs unavailable -> keep last state, else "unbekannt"
+      const uint32_t hold_ms = (uint32_t) (${hold_min | default(10)} * 60000.0f);
+      const bool held_fresh = id(${uid}_ttl_seen) != 0 &&
+          (hold_ms == 0 || (uint32_t) (millis() - id(${uid}_ttl_seen)) < hold_ms);
+      // inputs unavailable -> hold the last answer while it is still fresh
       if (!id(${uid}_ttl_usage).has_state() || std::isnan(id(${uid}_ttl_usage).state) ||
           !id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state)) {
-        if (id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "${t_ttl_unknown | default("unknown")}")
+        if (held_fresh && id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "${t_ttl_unknown | default("unknown")}")
           return id(${uid}_time_to_100).state;
         return std::string("${t_ttl_unknown | default("unknown")}");
       }
       const float pct = id(${uid}_ttl_usage).state;
       const float rate = id(${rate_id}).state;
-      // rate <= 0 -> not climbing -> keep last state, else "unbekannt"
+      // rate <= 0 -> not climbing -> hold the last answer while it is still fresh
       if (rate <= 0.0f) {
-        if (id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "${t_ttl_unknown | default("unknown")}")
+        if (held_fresh && id(${uid}_time_to_100).has_state() && id(${uid}_time_to_100).state != "${t_ttl_unknown | default("unknown")}")
           return id(${uid}_time_to_100).state;
         return std::string("${t_ttl_unknown | default("unknown")}");
       }
       const int mins = (int) ((100.0f - pct) / rate * 60.0f);
+      id(${uid}_ttl_seen) = millis();
       char buf[24];
       snprintf(buf, sizeof(buf), "${t_ttl_mins | default("in %d min")}", mins);
       return std::string(buf);
@@ -75,16 +95,19 @@ text_sensor:
     icon: mdi:clock-alert-outline
     update_interval: ${update_sec | default(30)}s
     lambda: |-
+      const uint32_t hold_ms = (uint32_t) (${hold_min | default(10)} * 60000.0f);
+      const bool held_fresh = id(${uid}_ttl_seen) != 0 &&
+          (hold_ms == 0 || (uint32_t) (millis() - id(${uid}_ttl_seen)) < hold_ms);
       if (!id(${uid}_ttl_usage).has_state() || std::isnan(id(${uid}_ttl_usage).state) ||
           !id(${rate_id}).has_state() || std::isnan(id(${rate_id}).state)) {
-        if (id(${uid}_eta_clock).has_state() && id(${uid}_eta_clock).state != "--:--")
+        if (held_fresh && id(${uid}_eta_clock).has_state() && id(${uid}_eta_clock).state != "--:--")
           return id(${uid}_eta_clock).state;
         return std::string("--:--");
       }
       const float pct = id(${uid}_ttl_usage).state;
       const float rate = id(${rate_id}).state;
       if (rate <= 0.0f) {
-        if (id(${uid}_eta_clock).has_state() && id(${uid}_eta_clock).state != "--:--")
+        if (held_fresh && id(${uid}_eta_clock).has_state() && id(${uid}_eta_clock).state != "--:--")
           return id(${uid}_eta_clock).state;
         return std::string("--:--");
       }
