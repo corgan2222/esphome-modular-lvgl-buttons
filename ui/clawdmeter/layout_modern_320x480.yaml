@@ -416,7 +416,7 @@ script:
           lv_obj_set_x(id(clawd_m_session_pct_sign), 15 + lv_obj_get_width(num) + 3);
       - lvgl.bar.update:
           id: clawd_m_session_bar
-          value: !lambda 'return id(clawd_m_session_pct).has_state() ? (int) id(clawd_m_session_pct).state : 0;'
+          value: !lambda 'return (id(clawd_m_session_pct).has_state() && !std::isnan(id(clawd_m_session_pct).state)) ? (int) id(clawd_m_session_pct).state : 0;'
       - lvgl.label.update:
           id: clawd_m_session_min
           text: !lambda 'return id(clawd_reset_reset_in_min).has_state() ? to_string((int) id(clawd_reset_reset_in_min).state) : std::string("0");'
@@ -440,7 +440,7 @@ script:
             return i == j ? std::string("--") : s.substr(i, j - i);
       - lvgl.bar.update:
           id: clawd_m_till_bar
-          value: !lambda 'return id(clawd_m_session_pct).has_state() ? (int) id(clawd_m_session_pct).state : 0;'
+          value: !lambda 'return (id(clawd_m_session_pct).has_state() && !std::isnan(id(clawd_m_session_pct).state)) ? (int) id(clawd_m_session_pct).state : 0;'
       - lvgl.label.update:
           id: clawd_m_till_eta
           text: !lambda |-
@@ -510,7 +510,7 @@ script:
           text: !lambda 'return id(clawd_m_weekly_pct).has_state() ? (to_string((int) id(clawd_m_weekly_pct).state) + "%") : std::string("0%");'
       - lvgl.bar.update:
           id: clawd_m_weekly_bar
-          value: !lambda 'return id(clawd_m_weekly_pct).has_state() ? (int) id(clawd_m_weekly_pct).state : 0;'
+          value: !lambda 'return (id(clawd_m_weekly_pct).has_state() && !std::isnan(id(clawd_m_weekly_pct).state)) ? (int) id(clawd_m_weekly_pct).state : 0;'
       - lvgl.label.update:
           id: clawd_m_weekly_reset
           text: !lambda 'return id(clawd_wreset_reset_clock).has_state() ? id(clawd_wreset_reset_clock).state : std::string("");'
@@ -519,7 +519,7 @@ script:
           text: !lambda 'return id(clawd_m_extra_pct).has_state() ? (to_string((int) id(clawd_m_extra_pct).state) + "%") : std::string("0%");'
       - lvgl.bar.update:
           id: clawd_m_extra_bar
-          value: !lambda 'return id(clawd_m_extra_pct).has_state() ? (int) id(clawd_m_extra_pct).state : 0;'
+          value: !lambda 'return (id(clawd_m_extra_pct).has_state() && !std::isnan(id(clawd_m_extra_pct).state)) ? (int) id(clawd_m_extra_pct).state : 0;'
       - lvgl.label.update:
           id: clawd_m_extra_cr
           text: !lambda |-
