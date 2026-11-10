@@ -13,14 +13,7 @@
 #   esphome -s screen_width 800 -s screen_height 480 compile sdl_single.yaml
 #
 # Screenshots are captured by capture.py (direct Xlib grab of the SDL/XWayland
-# window) rather than an in-firmware HTTP endpoint: the agillis lvgl_screenshot
-# component only builds against LVGL v8, while this stack uses the LVGL v9 fork
-# (pr#12312) where lv_color_t has no .ch member.
-
-external_components:
-  - source: github://pr#12312
-    components: [font, image, lvgl]
-    refresh: 1h
+# window) rather than an in-firmware HTTP endpoint.
 
 substitutions:
   icon_font: mdi_icons_40

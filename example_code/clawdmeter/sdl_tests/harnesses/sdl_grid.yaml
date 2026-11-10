@@ -8,7 +8,6 @@
 #   stats     -> right half (col 2-3, full height)
 #
 # SDL adaptations vs. the device config (see sdl_single.yaml for the rationale):
-#   * external_components pr#12312 (font/image/lvgl), needed for the host build
 #   * hardware -> hardware/SDL-lvgl.yaml
 #   * sensors_base.yaml -> sensors_base_sdl.yaml (no WiFi/CPU on the host)
 #   * backlight_time.yaml -> time_homeassistant.yaml
@@ -22,11 +21,6 @@
 # the tiles render at 0% / unavailable. Swap them for your own ids on a device.
 #
 # Screen size override: -s screen_width 800 -s screen_height 480
-
-external_components:
-  - source: github://pr#12312
-    components: [font, image, lvgl]
-    refresh: 1h
 
 substitutions:
   ha_session_usage: "sensor.session_usage"
@@ -69,10 +63,6 @@ logger:
 
 api:
 
-image:
-  defaults:
-    byte_order: little_endian
-
 script:
   - id: time_update
     then:
@@ -90,7 +80,10 @@ interval:
           // burn-rate / time-to-100 tiles compute a real slope. 0.04%/s = 2.4%/min
           // (above the engine's HEAVY threshold); the 20s cadence clears the
           // >15s sample burst-ignore; a ~120s window clears warming-up.
-          float t = millis() / 1000.0f;
+          // millis() counts from host boot, not program start: measure from the
+          // first tick, or the feed sits at its 95% cap once WSL runs > 28 min.
+          static uint32_t t0 = millis();
+          float t = (millis() - t0) / 1000.0f;
           float sess = 28.0f + t * 0.04f;
           if (sess > 95.0f) sess = 95.0f;
           id(clawd_c_anim_session_pct).publish_state(sess);

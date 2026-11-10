@@ -9,11 +9,6 @@
 # See sdl_single.yaml for why loading.yaml is dropped and why screenshots are
 # captured out-of-band by capture.py rather than an in-firmware endpoint.
 
-external_components:
-  - source: github://pr#12312
-    components: [font, image, lvgl]
-    refresh: 1h
-
 substitutions:
   icon_font: mdi_icons_40
   text_font: nunito_14

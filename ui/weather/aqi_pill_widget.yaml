@@ -1,0 +1,40 @@
+# AQI pill widget — include into any LVGL widgets: list, e.g.
+#   widgets:
+#     - !include esphome-modular-lvgl-buttons/ui/weather/aqi_pill_widget.yaml
+#
+# Colour + text are set at runtime by ui/weather/aqi_pill.yaml. Position it with
+# the ${aqi_align} / ${aqi_x} / ${aqi_y} substitutions (defaults: TOP_LEFT).
+# Font via ${aqi_font} (default nunito_20).
+obj:
+  id: aqi_pill
+  align: ${aqi_align | default("TOP_LEFT")}
+  x: ${aqi_x | default("0")}
+  y: ${aqi_y | default("0")}
+  width: SIZE_CONTENT
+  height: SIZE_CONTENT
+  radius: ${aqi_radius | default("14")}
+  bg_color: 0x9E9E9E
+  bg_opa: COVER
+  border_width: 0
+  shadow_opa: TRANSP
+  pad_left: ${aqi_pad_h | default("6")}
+  pad_right: ${aqi_pad_h | default("6")}
+  pad_top: ${aqi_pad_top | default("2")}
+  pad_bottom: ${aqi_pad_bottom | default("3")}
+  layout:
+    type: flex
+    flex_flow: COLUMN
+    flex_align_main: CENTER
+    flex_align_cross: CENTER
+    pad_row: 0
+  widgets:
+    - label:
+        id: aqi_pill_title
+        text: "AQI"
+        text_color: 0xFFFFFF
+        text_font: ${aqi_label_font | default("nunito_14")}
+    - label:
+        id: aqi_pill_label
+        text: "--"
+        text_color: 0xFFFFFF
+        text_font: ${aqi_value_font | default("nunito_24")}

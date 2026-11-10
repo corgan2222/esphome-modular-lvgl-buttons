@@ -18,11 +18,6 @@
 # Screen size override: -s screen_width 720 -s screen_height 720
 # Synthetic data: -s sim_feed 1  (see run_data.sh)
 
-external_components:
-  - source: github://pr#12312
-    components: [font, image, lvgl]
-    refresh: 1h
-
 substitutions:
   ha_session_usage: "sensor.session_usage"
   ha_week_usage:    "sensor.week_usage"
@@ -66,10 +61,6 @@ logger:
 
 api:
 
-image:
-  defaults:
-    byte_order: little_endian
-
 script:
   - id: time_update
     then:
@@ -87,7 +78,10 @@ interval:
           // burn-rate / time-to-100 tiles compute a real slope. 0.04%/s = 2.4%/min
           // (above the engine's HEAVY threshold); the 20s cadence clears the
           // >15s sample burst-ignore; a ~120s window clears warming-up.
-          float t = millis() / 1000.0f;
+          // millis() counts from host boot, not program start: measure from the
+          // first tick, or the feed sits at its 95% cap once WSL runs > 28 min.
+          static uint32_t t0 = millis();
+          float t = (millis() - t0) / 1000.0f;
           float sess = 28.0f + t * 0.04f;
           if (sess > 95.0f) sess = 95.0f;
           id(clawd_c_anim_session_pct).publish_state(sess);

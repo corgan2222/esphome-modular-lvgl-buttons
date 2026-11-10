@@ -5,7 +5,7 @@
 <h1 align="center">Clawdmeter — esphome-modular-lvgl-buttons</h1>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![ESPHome](https://img.shields.io/badge/ESPHome-2026.6.0+-blue)](https://esphome.io)
+[![ESPHome](https://img.shields.io/badge/ESPHome-2026.7.0+-blue)](https://esphome.io)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Integration-41BDF5)](https://www.home-assistant.io/)
 
 <p align="center">
@@ -102,6 +102,9 @@ device YAML and `secrets.yaml`. It is a **local folder, not a remote
 `packages:` source** — pointing `packages:` at the GitHub URL will *not* work,
 because the internal includes resolve relative to your config directory.
 
+ESPHome 2026.7.0 or later is required (the `image:` component uses the new
+`platform: file` form introduced in 2026.7.0).
+
 Target layout, however you get the files there:
 
 ```text
@@ -194,7 +197,7 @@ Requires ESPHome 2026.6.0 or later.
 | [`button`](ui/button/README.md) | ✅ | ✅ | — | Momentary press — works with `script.*`, `scene.*` too |
 | [`sensor_button`](ui/sensor_button/) | ✅ | ✅ | — | Sensor display + timed toggle action (e.g. temperature + heating boost) |
 | [`climate`](ui/climate/README.md) | ✅ | ✅ | ✅ | Arc setpoint, mode + fan + swing dropdowns, capability auto-detected |
-| `cover` | 🔜 | 🔜 | 🔜 | Blinds, shutters, garage doors |
+| [`cover`](ui/cover/README.md) | ✅ | ✅ | ✅ | Blinds, shutters, gates, garage doors — statefull/stateless auto-detected |
 | `fan` | 🔜 | 🔜 | 🔜 | — |
 | `number` | 🔜 | 🔜 | 🔜 | Setpoints, PID targets |
 | `select` | 🔜 | 🔜 | 🔜 | Operating modes, option lists |
@@ -276,6 +279,39 @@ Each detail page type also requires specific glyphs — see the type's `README.m
 
 ---
 
+## Adding your own images
+
+Every `image:` block in this repo uses the platform form introduced in ESPHome
+2026.7.0. If you add images in your own device YAML, the block **must be a list**
+whose entries each carry `platform: file`:
+
+```yaml
+image:
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: my_logo.png
+    id: my_logo
+    resize: 100x100
+```
+
+Two failure modes are worth knowing, because neither error message points at the
+file you need to fix:
+
+- **A mapping-shaped `image:` block silently deletes every image the packages
+  define.** Anything under `image:` that is not a list — even just a bare
+  `defaults:` key — replaces the package images instead of adding to them
+  (ESPHome merges two lists by concatenating, but a mapping wins outright). You
+  then get a cascade of `Couldn't find ID 'ha_img'` / `'esphome_img'` /
+  `'hue_ring_img'` errors pointing into `pages/loading.yaml` and
+  `ui/popup/popup_system.yaml`, where the IDs are in fact defined correctly.
+- **Don't fall back to the pre-2026.7 form.** List entries without `platform:`
+  mixed with this repo's platform-tagged entries disable ESPHome's automatic
+  migration entirely, giving
+  `'image' requires a 'platform' key but it was not specified`.
+
+---
+
 ## Theme
 
 The theme lives in [`common/theme/`](common/theme/README.md) and is a self-contained bundle — one include pulls in colors, fonts, MDI glyph substitutions, and LVGL styles. See the [theme README](common/theme/README.md) for the full color palette, font sizes, and customization reference.
@@ -332,50 +368,115 @@ Then `esphome run your-config.yaml` — a window opens simulating the display. S
 
 ## Supported hardware
 
+One hardware file per display, in [`hardware/`](hardware/). Include the one matching your
+device (`hardware: !include esphome-modular-lvgl-buttons/hardware/<model>.yaml`). The
+**Driver** column is the ESPHome display platform each file uses.
+
 ### Waveshare
 
-| Model | Size | Resolution |
-|---|---|---|
-| `waveshare-esp32-s3-touch-lcd-2.8c` | 2.8" | 320×240 |
-| `waveshare-esp32-s3-touch-lcd-4-v4` | 4.0" | 480×480 |
-| `waveshare-esp32-s3-touch-lcd-4.3` | 4.3" | 800×480 |
-| `waveshare-esp32-s3-touch-lcd-7` | 7.0" | 800×480 |
-| `waveshare-esp32-s3-touch-lcd-7B` | 7.0" | 800×480 |
-| `waveshare-esp32-p4-wifi6-touch-lcd-4b` | 4.0" | 720×720 |
-| `waveshare-esp32-p4-86-panel` | 4.0" | 720×720 |
-| `waveshare-esp32-p4-wifi6-touch-lcd-7` | 7.0" | 1024×600 |
-| `waveshare-esp32-p4-wifi6-touch-lcd-7b` | 7.0" | 1024×600 |
-| `waveshare-esp32-p4-wifi6-touch-lcd-10.1` | 10.1" | 800×1280 |
+| Model | Size | Resolution | Driver |
+|---|---|---|---|
+| `waveshare-esp32-s3-touch-lcd-2.8c` | 2.8" round | 480×480 | `st7701` |
+| `waveshare-esp32-s3-touch-lcd-3.5` | 3.5" | 320×480 | `mipi_spi` |
+| `waveshare-esp32-s3-touch-lcd-3.5b` | 3.5" | 480×320 | `mipi_spi` |
+| `waveshare-esp32-s3-touch-lcd-4` | 4.0" | 480×480 | `st7701` |
+| `waveshare-esp32-s3-touch-lcd-4-v4` | 4.0" | 480×480 | `mipi_rgb` |
+| `waveshare-esp32-s3-touch-lcd-4.3` | 4.3" | 800×480 | `rpi_dpi_rgb` |
+| `waveshare-esp32-s3-touch-lcd-7` | 7.0" | 800×480 | `mipi_rgb` |
+| `waveshare-esp32-s3-touch-lcd-7B` | 7.0" | 1024×600 | `mipi_rgb` |
+| `waveshare-esp32-p4-86-panel` | 86mm | 720×720 | `mipi_dsi` |
+| `waveshare-esp32-p4-wifi6-touch-lcd-3.4c` | 3.4" | 800×800 | `mipi_dsi` |
+| `waveshare-esp32-p4-wifi6-touch-lcd-4b` | 4.0" | 720×720 | `mipi_dsi` |
+| `waveshare-esp32-p4-wifi6-touch-lcd-7` | 7.0" | 720×1280 | `mipi_dsi` |
+| `waveshare-esp32-p4-wifi6-touch-lcd-7b` | 7.0" | 1024×600 | `mipi_dsi` |
+| `waveshare-esp32-p4-wifi6-touch-lcd-10.1` | 10.1" | 800×1280 | `mipi_dsi` |
+| `waveshare-esp32-p4-wifi6-7-DSI-TOUCH-A` | 7.0" | 720×1280 | `mipi_dsi` |
+| `waveshare-esp32-p4-wifi6-10.1-DSI-TOUCH-A` | 10.1" | 800×1280 | `mipi_dsi` |
+| `waveshare-esp32-p4-module-dev-kit-10.1-DSI-TOUCH-A` | 10.1" | 800×1280 | `mipi_dsi` |
+
+The last three entries are **two-piece** combinations — a Raspberry-Pi-form-factor dev
+board with a separate DSI panel on the MIPI-DSI FPC, not an all-in-one unit:
+
+- `waveshare-esp32-p4-wifi6-7-DSI-TOUCH-A` —
+  [ESP32-P4-WIFI6-DEV-KIT](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-DEV-KIT) +
+  [7-DSI-TOUCH-A](https://www.waveshare.com/wiki/7-DSI-TOUCH-A) (ILI9881C, 720×1280, 1Gbps).
+- `waveshare-esp32-p4-wifi6-10.1-DSI-TOUCH-A` — the same WIFI6 DEV-KIT +
+  [10.1-DSI-TOUCH-A](https://www.waveshare.com/wiki/10.1-DSI-TOUCH-A) (JD9365, 800×1280,
+  1.5Gbps).
+- `waveshare-esp32-p4-module-dev-kit-10.1-DSI-TOUCH-A` — that same 10.1 panel on the
+  [ESP32-P4-Module-DEV-KIT](https://www.waveshare.com/wiki/ESP32-P4-Module-DEV-KIT)
+  carrier, which is wired the same way but ships 16MB flash instead of 32MB.
+
+Pass `rotation: "270"` for the landscape mounting on either 10.1 profile. None of these
+boards route an LCD reset or backlight PWM GPIO: panel brightness is written over I2C
+(device `0x45`, register `0x96`) and the GT9271 touch controller is polled, because the
+DSI FPC carries no INT/RST lines. The 10.1 panel additionally has no enable
+GPIO: it is switched on by writing `0x95` on I2C device `0x45`, which ESPHome's `mipi_dsi`
+never does, so both 10.1 profiles replay the vendor's enable sequence at `on_boot`
+priority 900. Without it the boot wedges in the DSI command FIFO after ~19 commands and
+ends in safe mode with a blank panel — see the comments in those files for the details.
 
 ### Guition
 
-| Model | Size | Resolution |
-|---|---|---|
-| `guition-esp32-s3-4848s040` | 4.0" | 480×480 |
-| `guition-esp32-jc4827w543` | 4.3" | 272×480 |
-| `guition-esp32-jc8048w535` | 3.5" | 480×320 |
-| `guition-esp32-jc8048w550` | 5.0" | 480×800 |
-| `guition-esp32-p4-jc4880p443` | 4.3" | 480×800 |
-| `guition-esp32-p4-jc8012p4a1` | 8.0" | 800×1280 |
+| Model | Size | Resolution | Driver |
+|---|---|---|---|
+| `guition-esp32-s3-4848s040` | 4.0" | 480×480 | `mipi_rgb` |
+| `guition-esp32-jc4827w543` | 4.3" | 480×272 | `qspi_dbi` |
+| `guition-esp32-jc8048w535` | 3.5" | 480×320 | `axs15231` |
+| `guition-esp32-jc8048w550` | 5.0" | 800×480 | `mipi_rgb` |
+| `guition-esp32-p4-jc1060p470` | 7.0" | 1024×600 | `mipi_dsi` |
+| `guition-esp32-p4-jc1060p470c` | 7.0" | 1024×600 | `mipi_dsi` |
+| `guition-esp32-p4-jc1060p470-v2` | 7.0" | 1024×600 | `mipi_dsi` |
+| `guition-esp32-p4-jc1060p470c-v2` | 7.0" | 1024×600 | `mipi_dsi` |
+| `guition-esp32-p4-jc4880p443` | 4.3" | 480×800 | `mipi_dsi` |
+| `guition-esp32-p4-jc8012p4a1` | 10.1" | 800×1280 | `mipi_dsi` |
+| `guition-esp32-p4-jc8012p4a1-v2` | 10.1" | 800×1280 | `mipi_dsi` |
+| `guition-esp32-p4-jc8012p4a1-v3` | 10.1" | 800×1280 | `mipi_dsi` |
+
+The three `jc8012p4a1` entries are the same 10.1" board at different revisions, and
+picking the wrong one leaves the screen blank or garbled:
+
+- `guition-esp32-p4-jc8012p4a1` — original panel (`JC8012P4A1` init sequence).
+- `guition-esp32-p4-jc8012p4a1-v2` — later units with a different LCD behind the same
+  JD9365 driver, on pre-rev3 ESP32-P4 engineering-sample silicon.
+- `guition-esp32-p4-jc8012p4a1-v3` — same later LCD, on production (rev3) ESP32-P4.
+
+If the display works but the board reboots at boot, or ESPHome rejects
+`engineering_sample`, you are on the wrong one of `-v2` / `-v3` — check the boot log
+for `chip revision: vX.Y`. Both need ESPHome 2026.8.0 or newer.
+
+`guition-esp32-p4-jc1060p470-v2` is the 2026 "New Panel" revision of the 7" board.
+Guition prints "V2" in the SKU or material number on the label on the back of the
+case; boards without that marking use `guition-esp32-p4-jc1060p470`. The wrong
+profile gives a white screen with a vertical noise band. The V2 panel keeps the same
+JD9165 driver but needs its own init sequence and timings, reset on GPIO0 rather than
+GPIO27, and the ESP32-C6 SDIO clock dropped to 10MHz to stop it interfering with the
+MIPI-DSI stream. `guition-esp32-p4-jc1060p470c-v2` is the same panel revision on the
+`-c` board variant, which keeps its own LDO channel, audio pin map and lack of a
+status LED.
 
 ### Sunton
 
-| Model | Size | Resolution |
-|---|---|---|
-| `sunton-esp32-2432s028` | 2.8" | 320×240 |
-| `sunton-esp32-2432s028R` | 2.8" | 320×240 |
-| `sunton-esp32-4827s032R` | 3.2" | 480×320 |
-| `sunton-esp32-8048s050` | 5.0" | 480×800 |
-| `sunton-esp32-8048s070` | 7.0" | 480×800 |
+| Model | Size | Resolution | Driver |
+|---|---|---|---|
+| `sunton-esp32-2432s028` | 2.8" | 240×320 | `mipi_spi` |
+| `sunton-esp32-2432s028R` | 2.8" | 320×240 | `ili9xxx` |
+| `sunton-esp32-4827s032R` | 3.2" | 480×320 | `rpi_dpi_rgb` |
+| `sunton-esp32-8048s050` | 5.0" | 800×480 | `rpi_dpi_rgb` |
+| `sunton-esp32-8048s070` | 7.0" | 800×480 | `mipi_rgb` |
 
 ### Other
 
-| Model | Size | Resolution |
-|---|---|---|
-| `esp32-s3-box-3` | 2.4" | 320×240 |
-| `lilygo-tdisplays3` | 1.9" | 170×320 |
-| `elecrow-esp32-7inch` | 7.0" | 800×480 |
-| `SDL-lvgl` | variable | Desktop simulation |
+| Model | Size | Resolution | Driver |
+|---|---|---|---|
+| `esp32-s3-box-3` | 2.4" | 320×240 | `ili9xxx` |
+| `lilygo-tdisplays3` | 1.9" | 170×320 | `ili9xxx` |
+| `elecrow-esp32-7inch` | 7.0" | 800×480 | `rpi_dpi_rgb` |
+| `SDL-lvgl` | desktop | variable | `host` (SDL) |
+
+`hardware/generic.yaml` is a starting template for boards not listed above.
+Audio/voice add-ons (include *alongside* a screen, not standalone):
+`hardware/media_player-voice_assistant.yaml` and `hardware/guition-esp32-jc4827w543-audio.yaml`.
 
 ---
 
