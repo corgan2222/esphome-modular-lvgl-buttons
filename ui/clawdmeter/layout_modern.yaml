@@ -296,12 +296,15 @@ lvgl:
                         y: 34
                         text_font: nunito_36
                         text_color: ep_green
+                    # Right of the title, like "max 50%" / "0.0 cr" on the cards
+                    # below; under the 36 px number there is no room left.
                     - label:
                         id: clawd_m_pace_note
                         text: ""
-                        x: 16
-                        y: 72
-                        text_font: nunito_12
+                        align: TOP_RIGHT
+                        x: -16
+                        y: 14
+                        text_font: nunito_14
                         text_color: misty_blue
               # ===== Will-hit-limit card (runway verdict) =====
               - obj:
