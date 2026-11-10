@@ -108,7 +108,7 @@ Two design families:
 | `modern_720` | `layout_modern_720.yaml` | 720×720 square | Waveshare ESP32-P4-86-Panel |
 | `modern_1280` | `layout_modern_1280.yaml` | 800×1280 portrait | Guition ESP32-P4 JC8012P4A1; JC8012P4A1 V2 and V3, Waveshare ESP32-P4-Module-DEV-KIT and ESP32-P4-WIFI6 with 10.1-DSI-TOUCH-A (untested on hardware) |
 | `modern_320x240` | `layout_modern_320x240.yaml` | 320×240 landscape · **compact** | Sunton ESP32-2432S028 |
-| `modern_320x480` | `layout_modern_320x480.yaml` | 320×480 portrait | Guition ESP32-JC8048W535 |
+| `modern_320x480` | `layout_modern_320x480.yaml` | 320×480 portrait | Guition JC3248W535, hardware file `guition-esp32-jc8048w535` |
 | `modern_480x272` | `layout_modern_480x272.yaml` | 480×272 landscape | Guition ESP32-JC4827W543 |
 | `modern_720x1280` | `layout_modern_720x1280.yaml` | 720×1280 portrait | Waveshare ESP32-P4 WiFi6 Touch LCD 7; Waveshare ESP32-P4-WIFI6 with 7-DSI-TOUCH-A (untested on hardware) |
 
@@ -245,6 +245,13 @@ The pace-frame border include reads `clawd_pf_band` with `green_max: 0.5` /
 `orange_max: 1.5`, so `green → band 0`, `orange → band 1`, `red → band 2`. All
 mirror sensors are `internal: true` — the integration already exposes the real
 values in HA, so no duplicate device entities are created.
+
+> **Updating from an older grid config?** The display used to compute these
+> values itself and showed them in Home Assistant as device entities: *Burn Rate
+> 5m*, *Burn Rate 30m*, *Session Time To 100*, *Session 100% At*, *Session
+> Runway* and *Session Runway Pace*. They are gone from the display. An
+> automation or a dashboard that used them needs the entity of the integration
+> from the table above instead, for example `sensor.<account>_burn_rate_5_min`.
 
 ### What runs on the device
 
