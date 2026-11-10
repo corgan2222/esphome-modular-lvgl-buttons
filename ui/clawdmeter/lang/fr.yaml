@@ -50,6 +50,16 @@ substitutions:
   t_fmt_ttl:           'Avant 100%% - %s'
   t_fmt_burn:          'Conso  5m %s  \xC2\xB7  30m %s %%/h'
   t_fmt_runway:        'Atteint la limite ? %s'
+  # Durations as "45 min" / "20h 39m" / "8d 08h"; weekly mode (plan without a five-hour window)
+  t_fmt_session_reset_dur: 'Session %d%% - Reset dans %s - %s'
+  t_fmt_week_reset:        'Semaine %d%% - Reset dans %s - %s'
+  t_fmt_week:              'Semaine %d%% - %s'
+  t_fmt_model:             '%s %d%% - max %d%%'
+  t_fmt_ttl_clk_dur:       'Avant 100%% - %s - %s'
+  t_fmt_ttl_week_clk:      'Avant limite hebdo - %s - %s'
+  t_fmt_ttl_week:          'Avant limite hebdo - %s'
+  t_fmt_pace:              'Rythme hebdo %+d%% - %s'
+  t_fmt_pace_unknown:      'Rythme hebdo --'
 
   # ---- stats panel: static placeholder labels (shown until first repaint) ----
   t_ph_session: 'Session —'
@@ -80,6 +90,12 @@ substitutions:
   t_rmt_weekly_reset:  'Semaine  %d%%   \xC2\xB7   reset dans %dj%02dh'
   t_rmt_ph_session:    'Actuel  —'
   t_rmt_ph_weekly:     'Semaine  —'
+  # Durations as "45 min" / "20h 39m" / "8d 08h"; weekly mode
+  t_rmt_session_reset_dur: 'Actuel  %d%%   \xC2\xB7   reset dans %s'
+  t_rmt_weekly_reset_dur:  'Semaine  %d%%   \xC2\xB7   reset dans %s'
+  t_rmt_week:              'Semaine  %d%%'
+  t_rmt_week_reset:        'Semaine  %d%%   \xC2\xB7   reset dans %s'
+  t_rmt_model:             '%s  %d%%   \xC2\xB7   max %d%%'
 
   # ---- time_to_100_tile.yaml: optional display tile label ----
   t_tile_ttl: 'Avant 100%'

@@ -32,6 +32,34 @@ substitutions:
   screen_height: '480'
   screen_width: '480'
 
+  # Weekly mode (plan without a five-hour window, e.g. Ultra): "1" feeds usage,
+  # a reset 18h53m away and the model values, and switches the engine into
+  # weekly mode. "0" = layout only, no data (the default).
+  sim_weekly: "0"
+
+# Weekly-mode feed (opt-in via sim_weekly=="1"); no-op otherwise.
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          if (std::string("${sim_weekly}") != "1") return;
+          clawd_set_weekly_mode(true);
+          clawd_set_week_pace(-43.4f);
+          clawd_set_model_usage(7.0f);
+          clawd_set_model_allowance(50.0f);
+          clawd_set_model_label("Fable");
+          id(clawd_session_pct).publish_state(45.0f);
+          id(clawd_weekly_pct).publish_state(45.0f);
+          time_t nowt = ::time(nullptr);
+          if (nowt > 1000000) {
+            char buf[40]; struct tm tmv;
+            time_t r = nowt + 18 * 3600 + 53 * 60; gmtime_r(&r, &tmv);
+            snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d+00:00",
+                     tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+            id(clawd_session_reset_iso).publish_state(std::string(buf));
+            id(clawd_weekly_reset_iso).publish_state(std::string(buf));
+          }
+
 esphome:
   name: clawdmeter-sdl
   friendly_name: Clawdmeter SDL

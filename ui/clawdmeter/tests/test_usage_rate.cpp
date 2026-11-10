@@ -99,6 +99,16 @@ int main() {
   clawd_fmt_duration_line(60, "min", line, sizeof(line));
   EXPECT_EQ(strcmp(line, "1h 00m"), 0);
 
+  // ---- model store ----
+  EXPECT_EQ(std::isnan(clawd_model_usage()), 1);
+  EXPECT_EQ(strcmp(clawd_model_label(), ""), 0);
+  clawd_set_model_usage(7.0f); clawd_set_model_allowance(50.0f); clawd_set_model_label("Fable");
+  EXPECT_EQ((int) clawd_model_usage(), 7);
+  EXPECT_EQ((int) clawd_model_allowance(), 50);
+  EXPECT_EQ(strcmp(clawd_model_label(), "Fable"), 0);
+  clawd_set_model_label("A-very-long-model-name-that-overflows");  // truncated, no overrun
+  EXPECT_EQ((int) strlen(clawd_model_label()), 23);
+
   EXPECT_EQ(clawd_first_int("in 12001 min"), 12001);
   EXPECT_EQ(clawd_first_int("unknown"), -1);
   EXPECT_EQ(clawd_first_int(""), -1);

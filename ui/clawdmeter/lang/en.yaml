@@ -48,6 +48,16 @@ substitutions:
   t_fmt_ttl:           'Time till 100%% - %s'
   t_fmt_burn:          'Burn  5m %s  \xC2\xB7  30m %s %%/h'
   t_fmt_runway:        'Hit limit? %s'
+  # Durations as "45 min" / "20h 39m" / "8d 08h"; weekly mode (plan without a five-hour window)
+  t_fmt_session_reset_dur: 'Session %d%% - Reset in %s - %s'
+  t_fmt_week_reset:        'Week %d%% - Reset in %s - %s'
+  t_fmt_week:              'Week %d%% - %s'
+  t_fmt_model:             '%s %d%% - max %d%%'
+  t_fmt_ttl_clk_dur:       'Time till 100%% - %s - %s'
+  t_fmt_ttl_week_clk:      'Till weekly limit - %s - %s'
+  t_fmt_ttl_week:          'Till weekly limit - %s'
+  t_fmt_pace:              'Weekly pace %+d%% - %s'
+  t_fmt_pace_unknown:      'Weekly pace --'
 
   # ---- stats panel: static placeholder labels (shown until first repaint) ----
   t_ph_session: 'Session —'
@@ -78,6 +88,12 @@ substitutions:
   t_rmt_weekly_reset:  'Weekly  %d%%   \xC2\xB7   resets in %dd%02dh'
   t_rmt_ph_session:    'Current  —'
   t_rmt_ph_weekly:     'Weekly  —'
+  # Durations as "45 min" / "20h 39m" / "8d 08h"; weekly mode
+  t_rmt_session_reset_dur: 'Current  %d%%   \xC2\xB7   resets in %s'
+  t_rmt_weekly_reset_dur:  'Weekly  %d%%   \xC2\xB7   resets in %s'
+  t_rmt_week:              'Week  %d%%'
+  t_rmt_week_reset:        'Week  %d%%   \xC2\xB7   resets in %s'
+  t_rmt_model:             '%s  %d%%   \xC2\xB7   max %d%%'
 
   # ---- time_to_100_tile.yaml: optional display tile label ----
   t_tile_ttl: 'Till 100%'

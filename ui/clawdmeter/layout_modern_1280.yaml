@@ -528,6 +528,12 @@ script:
             char big[12], small[12];
             clawd_fmt_duration(m, "${t_modern_min | default("min")}", big, sizeof(big), small, sizeof(small));
             return std::string(small);
+      # Keep each big number next to its small unit: with "min" the number stays
+      # where the layout draws it, with "53m" / "03h" it moves up to the unit.
+      # Numbers: number x, unit x (both TOP_RIGHT offsets), gap in px.
+      - lambda: |-
+          clawd_hug_unit(id(clawd_m_session_min), id(clawd_m_session_unit), -110, -40, "${t_modern_min | default("min")}", 8);
+          clawd_hug_unit(id(clawd_m_till_num), id(clawd_m_till_unit), -117, -37, "${t_modern_min | default("min")}", 8);
       - lvgl.bar.update:
           id: clawd_m_till_bar
           value: !lambda 'return (id(clawd_m_session_pct).has_state() && !std::isnan(id(clawd_m_session_pct).state)) ? (int) id(clawd_m_session_pct).state : 0;'

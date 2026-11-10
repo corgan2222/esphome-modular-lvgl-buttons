@@ -153,6 +153,27 @@ static float g_week_pace = NAN;
 inline void clawd_set_weekly_mode(bool on) { clawd_detail::g_weekly = on; }
 inline bool clawd_weekly_mode() { return clawd_detail::g_weekly; }
 inline void clawd_set_week_pace(float pace) { clawd_detail::g_week_pace = pace; }
+inline float clawd_week_pace_value() { return clawd_detail::g_week_pace; }
+
+// The busiest model's own weekly cap (integration: weekly_model_usage with its
+// `model` and `allowance_percent_of_weekly` attributes). Kept here so every
+// layout can read it without its own Home Assistant sensors. NAN / "" = unknown.
+// No function here may share a name with an ESPHome id: every id becomes a
+// global in main.cpp, so a function `clawd_model_name()` would clash with the
+// text_sensor `clawd_model_name` and break the build.
+namespace clawd_detail {
+static float g_model_pct   = NAN;
+static float g_model_allow = NAN;
+static char  g_model_name[24] = "";
+}  // namespace clawd_detail
+inline void clawd_set_model_usage(float pct) { clawd_detail::g_model_pct = pct; }
+inline void clawd_set_model_allowance(float pct) { clawd_detail::g_model_allow = pct; }
+inline void clawd_set_model_label(const char *name) {
+  snprintf(clawd_detail::g_model_name, sizeof(clawd_detail::g_model_name), "%s", name ? name : "");
+}
+inline float clawd_model_usage() { return clawd_detail::g_model_pct; }
+inline float clawd_model_allowance() { return clawd_detail::g_model_allow; }
+inline const char *clawd_model_label() { return clawd_detail::g_model_name; }
 
 // Animation group 0..3 for weekly mode, same scale as clawd_usage_group().
 inline int clawd_weekly_group() {
@@ -360,6 +381,37 @@ inline void pick_for_rate() {
   render_frame(a->frames[0], a->palette);
 }
 }  // namespace clawd_detail
+
+// Keep a right-aligned big number next to its right-aligned small unit label.
+// While the unit reads the plain minutes word (`min_unit`), the number keeps
+// the offset the layout was drawn with (`num_x`), so a layout showing minutes
+// looks exactly as designed. With a unit like "03h" or "39m" the number moves
+// to sit `gap` px left of the unit's measured width.
+inline void clawd_hug_unit(lv_obj_t *num, lv_obj_t *unit, int num_x, int unit_x,
+                           const char *min_unit, int gap) {
+  if (!num || !unit) return;
+  const char *t = lv_label_get_text(unit);
+  if (t && min_unit && strcmp(t, min_unit) == 0) {
+    lv_obj_set_x(num, num_x);
+    return;
+  }
+  lv_obj_update_layout(unit);
+  lv_obj_set_x(num, unit_x - lv_obj_get_width(unit) - gap);
+}
+
+// Same idea for a left-placed number: the unit follows the number. With the
+// plain minutes word the unit keeps its drawn offset (`unit_x`).
+inline void clawd_hug_unit_after(lv_obj_t *num, lv_obj_t *unit, int unit_x,
+                                 const char *min_unit, int gap) {
+  if (!num || !unit) return;
+  const char *t = lv_label_get_text(unit);
+  if (t && min_unit && strcmp(t, min_unit) == 0) {
+    lv_obj_set_x(unit, unit_x);
+    return;
+  }
+  lv_obj_update_layout(num);
+  lv_obj_set_x(unit, lv_obj_get_x(num) + lv_obj_get_width(num) + gap);
+}
 
 // Create the creature canvas and fit it into `parent`. The canvas is a square
 // of CLAWD_GRID*g_cell px, sized from the parent's *measured* content box so the

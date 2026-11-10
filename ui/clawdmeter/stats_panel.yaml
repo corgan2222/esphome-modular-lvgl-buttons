@@ -25,7 +25,8 @@
 # Requires those backend packages to be included in the same config (the grid
 # example wires them up). A periodic interval repaints all bars + labels, so the
 # panel needs no on_value plumbing and tolerates each source updating on its own
-# cadence. Does NOT require engine.yaml.
+# cadence. Needs engine.yaml for the duration format and weekly mode
+# (clawdmeter_engine.h); every layout that shows the panel includes it.
 #
 # vars:
 #   uid                required  namespace prefix
@@ -58,6 +59,16 @@
 #   ttl_eta_id         required  id of the "100% at" ETA text_sensor
 #   burn5_id           required  id of the 5m burn-rate sensor
 #   burn30_id          required  id of the 30m burn-rate sensor
+#   ttl_text_id        optional  id of the "in N min" time-to-limit text_sensor
+#                                 (default clawd_ttl_time_to_100). Read only in
+#                                 weekly mode, where the 30m burn rate is ~0 and
+#                                 the integration's own projection is used instead.
+#
+# Weekly mode (plan without a five-hour window, clawd_weekly_mode() in
+# clawdmeter_engine.h): the session row reads as the week, the weekly row shows
+# the busiest model's own cap, the time row counts to the weekly limit, the burn
+# line shows the weekly pace and the runway uses the weekly projection. The
+# model and pace values come from the engine (fed by render_from_integration).
 #   credits_hold_ms    optional  how long (ms) to HOLD the last good extra-credits
 #                                 reading when the HA source flaps to 0 /
 #                                 unavailable (poll artifact, not a billing
@@ -111,26 +122,43 @@ interval:
           text: !lambda |-
             int p = (id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state)) ? (int) id(${uid}_session_pct).state : 0;
             std::string clk = id(${session_clock_id}).has_state() ? id(${session_clock_id}).state : "--:--";
+            const bool weekly = clawd_weekly_mode();
             char buf[72];
-            if (id(${session_resetin_id}).has_state() && !std::isnan(id(${session_resetin_id}).state))
-              snprintf(buf, sizeof(buf), "${t_fmt_session_reset | default("Session %d%% - Reset in %d m - %s")}",
-                       p, (int) id(${session_resetin_id}).state, clk.c_str());
-            else
+            if (id(${session_resetin_id}).has_state() && !std::isnan(id(${session_resetin_id}).state)) {
+              char dur[24];
+              clawd_fmt_duration_line((int) id(${session_resetin_id}).state, "${t_modern_min | default("min")}", dur, sizeof(dur));
+              if (weekly)
+                snprintf(buf, sizeof(buf), "${t_fmt_week_reset | default("Week %d%% - Reset in %s - %s")}", p, dur, clk.c_str());
+              else
+                snprintf(buf, sizeof(buf), "${t_fmt_session_reset_dur | default("Session %d%% - Reset in %s - %s")}", p, dur, clk.c_str());
+            } else if (weekly) {
+              snprintf(buf, sizeof(buf), "${t_fmt_week | default("Week %d%% - %s")}", p, clk.c_str());
+            } else {
               snprintf(buf, sizeof(buf), "${t_fmt_session | default("Session %d%% - %s")}", p, clk.c_str());
+            }
             return std::string(buf);
 
       # ---- Weekly: bar fill + recolour, label with absolute reset time ----
+      # In weekly mode the session row already shows the week, so this row shows
+      # the busiest model's own weekly cap ("Fable 7% - max 50%") once known.
       - lambda: |-
-          float v = id(${uid}_week_pct).has_state() ? id(${uid}_week_pct).state : 0;
+          const bool model = clawd_weekly_mode() && !std::isnan(clawd_model_usage());
+          float v = model ? clawd_model_usage() : (id(${uid}_week_pct).has_state() ? id(${uid}_week_pct).state : 0);
           lv_bar_set_value(id(${uid}_week_bar), (int) v, LV_ANIM_ON);
           lv_color_t c = (v >= 80) ? lv_color_hex(0xE53935) : (v >= 50) ? lv_color_hex(0xFFB300) : lv_color_hex(0x43A047);
           lv_obj_set_style_bg_color(id(${uid}_week_bar), c, LV_PART_INDICATOR);
       - lvgl.label.update:
           id: ${uid}_week_lbl
           text: !lambda |-
+            char buf[48];
+            if (clawd_weekly_mode() && !std::isnan(clawd_model_usage())) {
+              const char *name = clawd_model_label()[0] ? clawd_model_label() : "${t_modern_model | default("Model")}";
+              int allow = std::isnan(clawd_model_allowance()) ? 0 : (int) clawd_model_allowance();
+              snprintf(buf, sizeof(buf), "${t_fmt_model | default("%s %d%% - max %d%%")}", name, (int) clawd_model_usage(), allow);
+              return std::string(buf);
+            }
             int p = (id(${uid}_week_pct).has_state() && !std::isnan(id(${uid}_week_pct).state)) ? (int) id(${uid}_week_pct).state : 0;
             std::string clk = id(${weekly_clock_id}).has_state() ? id(${weekly_clock_id}).state : "--:--";
-            char buf[48];
             snprintf(buf, sizeof(buf), "${t_fmt_weekly | default("Weekly %d%% - %s")}", p, clk.c_str());
             return std::string(buf);
 
@@ -209,14 +237,28 @@ interval:
             // the two always agree. Burn rate is empty for the first minutes
             // after boot -> show just the clock fallback ("--:--").
             std::string clk = id(${ttl_eta_id}).has_state() ? id(${ttl_eta_id}).state : "--:--";
+            char buf[56], dur[24];
+            if (clawd_weekly_mode()) {
+              // Weekly mode: the 30m burn is ~0; use the integration's projection.
+              const char *txt = id(${ttl_text_id | default("clawd_ttl_time_to_100")}).has_state()
+                                    ? id(${ttl_text_id | default("clawd_ttl_time_to_100")}).state.c_str() : "";
+              int mins = clawd_first_int(txt);
+              if (mins >= 0) {
+                clawd_fmt_duration_line(mins, "${t_modern_min | default("min")}", dur, sizeof(dur));
+                snprintf(buf, sizeof(buf), "${t_fmt_ttl_week_clk | default("Till weekly limit - %s - %s")}", dur, clk.c_str());
+              } else {
+                snprintf(buf, sizeof(buf), "${t_fmt_ttl_week | default("Till weekly limit - %s")}", clk.c_str());
+              }
+              return std::string(buf);
+            }
             bool have_min = id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state) &&
                             id(${burn30_id}).has_state() && !std::isnan(id(${burn30_id}).state) &&
                             id(${burn30_id}).state > 0.0f;
-            char buf[48];
             if (have_min) {
               int mins = (int) ((100.0f - id(${uid}_session_pct).state) / id(${burn30_id}).state * 60.0f);
               if (mins < 0) mins = 0;
-              snprintf(buf, sizeof(buf), "${t_fmt_ttl_clk | default("Time till 100%% - %dm - %s")}", mins, clk.c_str());
+              clawd_fmt_duration_line(mins, "${t_modern_min | default("min")}", dur, sizeof(dur));
+              snprintf(buf, sizeof(buf), "${t_fmt_ttl_clk_dur | default("Time till 100%% - %s - %s")}", dur, clk.c_str());
             } else {
               snprintf(buf, sizeof(buf), "${t_fmt_ttl | default("Time till 100%% - %s")}", clk.c_str());
             }
@@ -226,6 +268,17 @@ interval:
       - lvgl.label.update:
           id: ${uid}_burn_lbl
           text: !lambda |-
+            if (clawd_weekly_mode()) {
+              // Weekly mode: the burn rate sits at ~0; show the weekly pace instead.
+              char pb[56];
+              float pace = clawd_week_pace_value();
+              if (std::isnan(pace))
+                snprintf(pb, sizeof(pb), "${t_fmt_pace_unknown | default("Weekly pace --")}");
+              else
+                snprintf(pb, sizeof(pb), "${t_fmt_pace | default("Weekly pace %+d%% - %s")}", (int) std::lround(pace),
+                         pace > 0.0f ? "${t_modern_pace_over | default("over plan")}" : "${t_modern_pace_under | default("under plan")}");
+              return std::string(pb);
+            }
             char b5[12], b30[12];
             if (id(${burn5_id}).has_state() && !std::isnan(id(${burn5_id}).state))
               snprintf(b5, sizeof(b5), "%.1f", id(${burn5_id}).state);
@@ -246,25 +299,37 @@ interval:
       - lvgl.label.update:
           id: ${uid}_runway_lbl
           text: !lambda |-
-            bool ok = id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state) &&
-                      id(${burn30_id}).has_state() && !std::isnan(id(${burn30_id}).state) &&
-                      id(${session_resetin_id}).has_state() && !std::isnan(id(${session_resetin_id}).state);
-            char vbuf[32];
-            if (!ok) {
-              snprintf(vbuf, sizeof(vbuf), "${t_runway_unknown | default("unknown")}");
-            } else {
+            const bool weekly = clawd_weekly_mode();
+            const bool reset_ok = id(${session_resetin_id}).has_state() && !std::isnan(id(${session_resetin_id}).state);
+            // Minutes until the limit: from the 30m burn, or in weekly mode from the
+            // integration's projection (the burn rate is ~0 there).
+            float t_limit = -1.0f;
+            bool no_burn = false;
+            if (weekly) {
+              const char *txt = id(${ttl_text_id | default("clawd_ttl_time_to_100")}).has_state()
+                                    ? id(${ttl_text_id | default("clawd_ttl_time_to_100")}).state.c_str() : "";
+              int m = clawd_first_int(txt);
+              if (m >= 0) t_limit = (float) m;
+            } else if (id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state) &&
+                       id(${burn30_id}).has_state() && !std::isnan(id(${burn30_id}).state)) {
               float rate = id(${burn30_id}).state;
-              if (rate <= 0.0f) {
-                snprintf(vbuf, sizeof(vbuf), "${t_runway_clear | default("No")}");
+              if (rate <= 0.0f) no_burn = true;
+              else t_limit = (100.0f - id(${uid}_session_pct).state) / rate * 60.0f;
+            }
+            char vbuf[40], dur[24];
+            if (!reset_ok || (t_limit < 0.0f && !no_burn)) {
+              snprintf(vbuf, sizeof(vbuf), "${t_runway_unknown | default("unknown")}");
+            } else if (no_burn) {
+              snprintf(vbuf, sizeof(vbuf), "${t_runway_clear | default("No")}");
+            } else {
+              float t_reset = id(${session_resetin_id}).state;
+              if (t_reset < 0.0f) t_reset = 0.0f;
+              if (t_reset <= t_limit) {
+                clawd_fmt_duration_line((int) (t_limit - t_reset), "${t_modern_min | default("min")}", dur, sizeof(dur));
+                snprintf(vbuf, sizeof(vbuf), "${t_runway_spare_dur | default("No · %s to spare")}", dur);
               } else {
-                float t_reset = id(${session_resetin_id}).state;
-                if (t_reset < 0.0f) t_reset = 0.0f;
-                float t_limit = (100.0f - id(${uid}_session_pct).state) / rate * 60.0f;
-                if (t_limit < 0.0f) t_limit = 0.0f;
-                if (t_reset <= t_limit)
-                  snprintf(vbuf, sizeof(vbuf), "${t_runway_spare | default("No · %dm to spare")}", (int) (t_limit - t_reset));
-                else
-                  snprintf(vbuf, sizeof(vbuf), "${t_runway_short | default("Yes · %dm early")}", (int) (t_reset - t_limit));
+                clawd_fmt_duration_line((int) (t_reset - t_limit), "${t_modern_min | default("min")}", dur, sizeof(dur));
+                snprintf(vbuf, sizeof(vbuf), "${t_runway_short_dur | default("Yes · %s early")}", dur);
               }
             }
             char buf[64];

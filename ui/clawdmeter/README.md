@@ -130,18 +130,21 @@ configure.
 - The creature's mood follows the weekly pace (how far usage is ahead of or
   behind an even spread over the week), and any rise in usage keeps it
   working for 30 minutes.
-- The modern layouts `modern`, `modern_1280`, `modern_720x1280` and
-  `modern_landscape` show the week in the hero, count down to the weekly
-  limit, replace the burn-rate card with a weekly-pace card and show the
-  busiest model's own weekly cap in place of the weekly card. The other
-  layouts keep their session view.
+- All modern layouts show the week in the hero and count down to the weekly
+  limit. All except the compact `modern_320x240` also replace the burn-rate
+  card with a weekly-pace card and show the busiest model's own weekly cap
+  in place of the weekly card.
+- The classic stats panel labels the session line as the week, shows the
+  busiest model's cap in the weekly line, the weekly pace in the burn line
+  and the integration's time to the weekly limit.
+- The all-in-one tile labels its first bar as the week and fills the second
+  bar with the busiest model's cap.
 
 Without `window: weekly` (a plan with a five-hour window, or an older
-integration) nothing changes.
+integration) the weekly view stays off. In weekly mode, a reset more than
+a day away carries its weekday.
 
-Long durations read as `45 min`, `20h 39m` or `8d 08h` in the four layouts
-above and in the runway line, and a reset more than a day away carries its
-weekday.
+For every plan, long durations read as `45 min`, `20h 39m` or `8d 08h`.
 
 ### Modern layouts at a glance
 

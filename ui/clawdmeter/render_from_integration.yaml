@@ -68,11 +68,17 @@ sensor:
     id: clawd_model_pct
     entity_id: sensor.${ha_account}_weekly_model_usage
     internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_model_usage(x);'
   - platform: homeassistant
     id: clawd_model_allow
     entity_id: sensor.${ha_account}_weekly_model_usage
     attribute: allowance_percent_of_weekly
     internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_model_allowance(x);'
 
   # --- Hit-card colour ratio: 0.0 (safe/green) or 2.0 (over) from the binary.
   #     The layout tests this id > 1.0f; deriving it from the authoritative
@@ -125,6 +131,9 @@ text_sensor:
     entity_id: sensor.${ha_account}_weekly_model_usage
     attribute: model
     internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_model_label(x.c_str());'
 
   # --- pace_frame enum source (green/orange/red) ---
   - platform: homeassistant
