@@ -14,490 +14,194 @@
   <a href="https://github.com/corgan2222/lovelace-clawdmeter"><img src="https://raw.githubusercontent.com/corgan2222/esphome-modular-lvgl-buttons/main/images/clawdmeter-lovelace-card.png" alt="Clawdmeter Lovelace card" height="40"></a>
 </p>
 
-A modular component library for building touchscreen smart home control panels using [ESPHome](https://esphome.io/) + [LVGL](https://lvgl.io/) on cheap ESP32 displays.
+A modular component library for touchscreen smart home panels, built with ESPHome and [LVGL](https://lvgl.io/) for cheap ESP32 displays. This fork adds Clawdmeter, a display that shows your Claude usage.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design rationale.
+## What is new in this fork
 
----
+| Layer | Adds |
+|---|---|
+| Base, by [agillis](https://github.com/agillis/esphome-modular-lvgl-buttons) | The tile library with every entity type except `media_player`. Flip clock, weather, solar and tides modules. |
+| Derek's features, by [derekmcauley7](https://github.com/derekmcauley7/esphome-modular-lvgl-buttons) | The `media_player` tile with its detail page |
+| This fork | Clawdmeter: classic and modern layouts, four languages (`en`, `de`, `fr`, `es`), Runway projection, pace frame |
 
-## ⭐ What's new in this fork
+Both upstream layers are included in full. This fork only adds Clawdmeter on top.
 
-This is a fork. Lineage and what each layer adds:
+## What is new in the latest release
 
-| Layer | Repo | Adds |
+- Weekly view for plans without a five-hour window, such as Ultra. The display switches on its own.
+- Durations read as `45 min`, `20h 39m` or `8d 08h` in every layout.
+- Six more modern grid configs: three Waveshare P4 DSI kits, Guition JC8012P4A1 V2 and V3, Sunton 8048S043.
+- Ten new hardware files, among them the CrowPanel Advanced 10.1" and the Guition JC1060P470 V2.
+- New `cover` tile for blinds, shutters, gates and garage doors.
+- Weather and tides: Pirate Weather with an AQI pill, and offline tide prediction.
+- ESPHome 2026.7.0 or newer is required, 2026.8.0 for the JC8012P4A1 V2 and V3.
+
+## Clawdmeter
+
+Clawdmeter is an animated pixel-art creature with a stats panel. The creature's mood follows how fast you burn tokens. The panel shows session, weekly and extra usage, burn rate, time to 100%, the reset clocks and Runway. Runway answers one question: will you reach the limit before the reset?
+
+| Build | You include | It shows |
 |---|---|---|
-| **Base** | [agillis/esphome-modular-lvgl-buttons](https://github.com/agillis/esphome-modular-lvgl-buttons) | The modular tile library: light, switch, sensor, binary_sensor, text_sensor, button, sensor_button, climate + the flip-clock / weather / solar / tides feature modules. |
-| **+ Derek's features** | [derekmcauley7/esphome-modular-lvgl-buttons](https://github.com/derekmcauley7/esphome-modular-lvgl-buttons) | **`media_player`** entity (remote-only): transport controls, volume, progress bar, full-screen detail page, optional PIN lock. |
-| **+ This fork** | you are here | **🐾 [Clawdmeter](#-clawdmeter)** — animated Claude-usage display · **🌍 4-language i18n** (en/de/fr/es) for Clawdmeter · **🛫 Runway** burn-vs-reset projection · **🖼 Pace frame** colour-coded breathing runway border (grid layouts) · **🎨 Modern multi-format layouts** (`classic`/`modern` page-1 look, nine pixel-tuned resolutions). Bumped to ESPHome **2026.6.0**. |
+| All-in-one | `remote.yaml`, once | Creature, session and weekly bars, reset countdowns. Fits any resolution. |
+| Grid classic | Single tiles, placed on a grid | Adds extra usage, burn rate, time to 100%, Runway and the pace frame |
+| Grid modern | A layout file, picked with `design:` | The grid classic metrics as dark cards, plus history charts. Nine fixed resolutions. |
 
-So everything in the base library **and** Derek's `media_player` is included here —
-this fork only **adds** the Clawdmeter stack on top.
+The pace frame is an optional breathing border around the creature tile on both grid builds. It turns the Runway pace into green, orange or red.
 
-### 🐾 Clawdmeter
+> **Clawdmeter needs a data source.** It only draws Home Assistant entities. The [ha-clawdmeter](https://github.com/corgan2222/ha-clawdmeter) integration provides them, about 29 per Claude account. The `ha_account` substitution binds a config to the slug of that account's device, for example `claude_jane_pro`.
 
-An animated pixel-art creature that shows your **Claude token usage**: the
-creature's mood tracks how fast you're burning tokens, and a stats panel below
-draws session / weekly / extra usage bars, burn rate, time-to-100 %, reset
-clocks and a "Runway" verdict. On the modular grid layouts the creature tile can
-also wear a colour-coded, breathing **pace frame** that turns the Runway pace
-into a green → orange → red status border.
+The [Clawdmeter reference](ui/clawdmeter/README.md) covers the data flow, every entity and variable, the animation rules and the weekly view.
 
-<p align="center">
-  <img src="example_code/clawdmeter/sdl_tests/screenshots/modern-data.png" width="240" alt="Clawdmeter — Modern Dark layout (480×800)"><br>
-  <sub><i>The "Modern Dark" layout (480×800) — one of nine pixel-tuned modern formats. SDL preview render.</i></sub>
-</p>
+### Modern layouts
 
-> **Data source required.** The Clawdmeter is **render-only** — it reads
-> precomputed **Home Assistant entities** and draws them; it does not scrape
-> Claude or derive burn rate / time-to-100 % / runway itself. Those entities
-> come from the
-> [corgan2222/ha-clawdmeter](https://github.com/corgan2222/ha-clawdmeter)
-> integration, which polls the Anthropic usage API and exposes ~29 entities per
-> Claude account — raw usage **plus** all derived metrics (burn rate, usage
-> rate, time-to-limit, runway, pace) — under one HA device named
-> `Claude <name> (<plan>)`. Bind a config to it with the single **`ha_account`**
-> substitution set to that device's slug (e.g. `claude_jane_pro`).
+`design:` picks one of nine modern layouts, the "Modern Dark" look. Each is tuned by hand for one resolution. Here are four. The Clawdmeter reference shows all nine.
 
-- 📖 **[ui/clawdmeter/README.md](ui/clawdmeter/README.md)** — data flow (where
-  the entities come from, what the device still renders itself — creature
-  animation, history charts, the live reset countdown — when which animation is
-  shown) + full file/variable reference.
-- 🧩 **Two ways to build it:** an **all-in-one** single include (compact,
-  resolution-agnostic — session / weekly bars + reset countdowns + creature) or
-  a **modular grid** of tiles (full metric set: burn rate, time-to-100 %, Runway
-  line + pace frame). See the
-  [comparison](ui/clawdmeter/README.md#all-in-one-vs-modular-grid).
-- 🎨 **Two looks, nine formats:** a `classic` creature-and-panel layout or the
-  **`modern`** dark-card design — the latter pixel-tuned for **320×240, 320×480,
-  480×272, 480×480, 480×800, 720×720, 720×1280, 800×480 and 800×1280** (the
-  320×240 a compact reduced variant) — picked with a single `design:`
-  substitution. See [Designs and multi-format layouts](ui/clawdmeter/README.md#designs-and-multi-format-layouts).
-- 🚀 Ready-to-flash examples in
-  [`example_code/clawdmeter/`](example_code/clawdmeter/) — sorted into
-  [`all-in-one/`](example_code/clawdmeter/all-in-one/) and
-  [`grid/`](example_code/clawdmeter/grid/).
+| `modern`<br>480×800 | `modern_square`<br>480×480 |
+|:---:|:---:|
+| <img src="example_code/clawdmeter/sdl_tests/screenshots/modern-data.png" width="144" alt="modern, 480×800"> | <img src="example_code/clawdmeter/sdl_tests/screenshots/modern-square-data.png" width="240" alt="modern_square, 480×480"> |
 
----
+| `modern_landscape`<br>800×480 | `modern_320x240`<br>320×240, compact |
+|:---:|:---:|
+| <img src="example_code/clawdmeter/sdl_tests/screenshots/modern-landscape-data.png" width="280" alt="modern_landscape, 800×480"> | <img src="example_code/clawdmeter/sdl_tests/screenshots/modern-320x240-data.png" width="224" alt="modern_320x240, compact"> |
+
+`modern_320x240` is compact: it drops the weekly and extra rows. The screenshots are SDL desktop renders with synthetic data.
+
+## Supported boards
+
+These boards ship with a ready Clawdmeter config for all three builds. The second column names the `design:` value of the grid modern config.
+
+| Board | `design:` |
+|---|---|
+| Guition JC4880P443, 4.3", 480×800 | `modern`, `modern_landscape` |
+| Guition JC8012P4A1, 10.1", 800×1280 | `modern_1280` |
+| Guition 4848S040, 4.0", 480×480 | `modern_square` |
+| Guition JC4827W543, 4.3", 480×272 | `modern_480x272` |
+| Guition JC8048W535, 3.5", 320×480 | `modern_320x480` |
+| Sunton 2432S028, 2.8", 320×240 | `modern_320x240` |
+| Waveshare P4 86 Panel, 86 mm, 720×720 | `modern_720` |
+| Waveshare P4 WiFi6 Touch LCD 7, 7.0", 720×1280 | `modern_720x1280` |
+
+These boards have a grid modern config only. It is untested: validated and compiled, but never run on the board.
+
+| Board | `design:` |
+|---|---|
+| Guition JC8012P4A1 V2 and V3, 10.1", 800×1280 | `modern_1280` |
+| Sunton 8048S043, 4.3", 800×480 | `modern_landscape` |
+| Waveshare P4 WiFi6 kit + 7-DSI-TOUCH-A, 7.0", 720×1280 | `modern_720x1280` |
+| Waveshare P4 WiFi6 kit + 10.1-DSI-TOUCH-A, 10.1", 800×1280 | `modern_1280` |
+| Waveshare P4 Module kit + 10.1-DSI-TOUCH-A, 10.1", 800×1280 | `modern_1280` |
+
+The configs are in [`example_code/clawdmeter/`](example_code/clawdmeter/), sorted into `all-in-one/` and `grid/` and named after the board. Only the JC4880P443 portrait config, `design: modern`, runs on a device every day.
+
+The library also supports the boards below. They have no ready Clawdmeter config yet.
+
+| Maker | Boards |
+|---|---|
+| Waveshare ESP32-S3 | Touch LCD 2.8C, 3.5, 3.5B, 4, 4 V4, 4.3, 7, 7B |
+| Waveshare ESP32-P4 | WiFi6 Touch LCD 3.4C, 4B, 7B, 10.1 |
+| Guition | JC8048W550, JC1060P470 and JC1060P470C, both also as V2 |
+| Sunton | 2432S028R, 4827S032R, 8048S050, 8048S070 |
+| Others | Elecrow 7", CrowPanel Advanced 10.1" in two revisions, ESP32-S3-BOX-3, LilyGO T-Display S3 |
+
+**Pick the hardware file that matches your panel revision.** The JC8012P4A1 and the JC1060P470 exist in several revisions, and each needs its own file. The [board reference](docs/boards.md) tells the revisions apart. It also lists every hardware file with size, resolution and display driver.
 
 ## How it works
 
-Each entity type lives in `ui/<type>/` and provides:
+Each entity type lives in `ui/<type>/`:
 
-```
-ui/<type>/local.yaml    — tile for an ESPHome component on the same device
-ui/<type>/remote.yaml   — tile for a Home Assistant entity
-ui/<type>/detail.yaml   — full-screen detail page (complex types only)
-```
+| File | Provides |
+|---|---|
+| `local.yaml` | Tile for an ESPHome component on the same device |
+| `remote.yaml` | Tile for a Home Assistant entity |
+| `detail.yaml` | Full-screen detail page, complex types only |
 
-Your device YAML composes a panel by including one hardware file, the shared infrastructure, and one `!include` per tile. Everything internal (globals, scripts, detail page) is wired automatically.
-
----
+Your device YAML includes one hardware file, the shared infrastructure and one `!include` per tile. Globals, scripts and detail pages are wired automatically. [ARCHITECTURE.md](ARCHITECTURE.md) explains the design.
 
 ## Installation
 
-This library is a folder of `!include` building blocks. Your device YAML pulls
-them in by the literal path `esphome-modular-lvgl-buttons/...`, so the **whole
-repo has to live inside your ESPHome config directory**, right next to your
-device YAML and `secrets.yaml`. It is a **local folder, not a remote
-`packages:` source** — pointing `packages:` at the GitHub URL will *not* work,
-because the internal includes resolve relative to your config directory.
+The shortest path that works today:
 
-ESPHome 2026.7.0 or later is required (the `image:` component uses the new
-`platform: file` form introduced in 2026.7.0).
-
-Target layout, however you get the files there:
-
-```text
-/config/esphome/                     ← your ESPHome dashboard config dir
-├── esphome-modular-lvgl-buttons/    ← THIS repo, cloned/copied as a whole folder
-├── secrets.yaml                     ← wifi + lat/lon
-└── my-panel.yaml                    ← your device config (a copy of an example)
-```
-
-### Option A — Home Assistant ESPHome add-on (easiest)
-
-The ESPHome **Device Builder** add-on (the default builder since ESPHome
-2026.6.0) stores its configs in `/config/esphome/`. You only have to drop this
-repo into that folder.
-
-1. **Get the repo into `/config/esphome/`.** Easiest with a terminal: install
-   the **Advanced SSH & Web Terminal** add-on, open its terminal, and run:
+1. In Home Assistant 2026.11 or newer, install the ha-clawdmeter integration and connect your Claude account. Note the device slug, for example `claude_jane_pro`.
+2. Clone this repository into your ESPHome config directory. With the ESPHome Device Builder add-on that is `/config/esphome/`.
 
    ```bash
    cd /config/esphome
    git clone https://github.com/corgan2222/esphome-modular-lvgl-buttons.git
    ```
 
-   *No terminal?* On GitHub use **Code → Download ZIP**, unzip it, and copy the
-   folder into `/config/esphome/` with the **Samba** or **Studio Code Server** /
-   **File editor** add-on. Rename it so it is exactly
-   `esphome-modular-lvgl-buttons` (drop any `-main` suffix).
+3. Copy the config for your board from `example_code/clawdmeter/all-in-one/` (the simplest) or `example_code/clawdmeter/grid/` into the config directory itself, next to the cloned folder. Set `ha_account` in its `substitutions:` block.
+4. Add five keys to `secrets.yaml`: `wifi_ssid`, `wifi_password`, `ap_password`, `latitude`, `longitude`.
+5. Install from the Device Builder. The first flash goes over USB. Then add the discovered device in Home Assistant.
 
-2. **Add your device config.** Copy the example that matches your board from
-   [`example_code/clawdmeter/`](example_code/clawdmeter/) — start with
-   [`all-in-one/`](example_code/clawdmeter/all-in-one/), it is the simplest — up
-   into `/config/esphome/`, rename it e.g. `my-panel.yaml`, and edit only the
-   `substitutions:` block at the top (your `ha_account` slug, board rotation).
+For a tile panel without Clawdmeter, skip step 1 and copy a config from `example_code/modular/`.
 
-   > **Clawdmeter needs a usage data source.** Install the
-   > [corgan2222/ha-clawdmeter](https://github.com/corgan2222/ha-clawdmeter)
-   > integration — it polls the Anthropic usage API and exposes the precomputed
-   > usage entities under one HA device per Claude account. Set the config's
-   > `ha_account` substitution to that device's slug (e.g. `claude_jane_pro`);
-   > find it in HA → Developer Tools → States, filter `sensor.claude`, and take
-   > the common prefix before `_session_usage`. See
-   > [ui/clawdmeter/README.md](ui/clawdmeter/README.md) for the entity reference.
+```text
+/config/esphome/
+├── esphome-modular-lvgl-buttons/    this repository, the whole folder
+├── secrets.yaml
+└── my-panel.yaml                    your copy of an example config
+```
 
-3. **Add secrets.** In the ESPHome dashboard open **Secrets** (top-right ⋮ menu)
-   and add:
+**Keep the folder name `esphome-modular-lvgl-buttons`, and do not point `packages:` at the GitHub URL.** Configs, fonts and images use that literal path, which only resolves from your config directory.
 
-   ```yaml
-   wifi_ssid: "your-ssid"
-   wifi_password: "your-wifi-password"
-   ap_password: "your-fallback-ap-password"
-   latitude: 0.0000
-   longitude: 0.0000
-   ```
+You need ESPHome 2026.7.0 or newer.
 
-   This writes `/config/esphome/secrets.yaml`, exactly where the includes look.
+There is no prebuilt firmware and no browser installer. Board, Wi-Fi and Claude account are set at compile time.
 
-4. **Install.** Your config now appears as a card in the ESPHome dashboard —
-   click **⋮ → Install → Wirelessly** (or connect the board by USB to the Home
-   Assistant host for the very first flash).
+<details>
+<summary>Each step in detail, and the ESPHome CLI</summary>
 
-> **Updating later:** in the terminal run
-> `cd /config/esphome/esphome-modular-lvgl-buttons && git pull`, then re-install
-> the device from the dashboard.
+- Slug: in Home Assistant open Developer Tools, then States. Filter for `sensor.claude` and take the common prefix before `_session_usage`.
+- Terminal: step 2 runs in a terminal, for example the Advanced SSH & Web Terminal add-on.
+- No terminal: choose Code, then Download ZIP on GitHub. Copy the unzipped folder into `/config/esphome/` with the Samba, Studio Code Server or File editor add-on. Rename it to `esphome-modular-lvgl-buttons`, without the `-main` suffix.
+- Device config: rename your copy, for example to `my-panel.yaml`. Edit only its `substitutions:` block: the `ha_account` slug and the board rotation.
+- Secrets: in the Device Builder open Secrets in the three-dot menu at the top right. This writes `/config/esphome/secrets.yaml`, where the includes look for it.
 
-### Option B — ESPHome CLI (without Home Assistant)
+  ```yaml
+  wifi_ssid: "your-ssid"
+  wifi_password: "your-wifi-password"
+  ap_password: "your-fallback-ap-password"
+  latitude: 0.0000
+  longitude: 0.0000
+  ```
 
-For SVG image support (required by the solar/tides modules): `pip install cairosvg`.
+- Install: your config shows as a card in the Device Builder. Choose Install in its three-dot menu. For the first flash, connect the board by USB to the Home Assistant host. Later installs can go wirelessly.
+- Update: run `cd /config/esphome/esphome-modular-lvgl-buttons && git pull`, then install the device again.
+
+With the ESPHome CLI the steps are the same:
 
 ```bash
-cd /config   # or wherever your ESPHome configs live
+cd /config               # or wherever your ESPHome configs live
 git clone https://github.com/corgan2222/esphome-modular-lvgl-buttons.git
-# create secrets.yaml (the same 5 keys as above) next to the repo,
-# copy an example device config, then:
+# create secrets.yaml next to the cloned folder, copy an example config, then:
 esphome run my-panel.yaml
 ```
 
-Requires ESPHome 2026.6.0 or later.
+</details>
 
----
+## Build your own panel
 
-## Available entity types
+Clawdmeter is one module. The library underneath builds any tile panel from these entity types:
 
-| Type | local | remote | Detail page | Notes |
-|---|---|---|---|---|
-| [`light`](ui/light/README.md) | ✅ | ✅ | ✅ | RGB / CCT / brightness, capability auto-detected |
-| [`switch`](ui/switch/README.md) | ✅ | ✅ | — | Works with any toggleable HA entity |
-| [`sensor`](ui/sensor/README.md) | ✅ | ✅ | — | Configurable unit and decimal precision |
-| [`binary_sensor`](ui/binary_sensor/README.md) | ✅ | ✅ | — | Read-only — door, motion, leak |
-| [`text_sensor`](ui/text_sensor/README.md) | ✅ | ✅ | — | Display any string state or attribute |
-| [`button`](ui/button/README.md) | ✅ | ✅ | — | Momentary press — works with `script.*`, `scene.*` too |
-| [`sensor_button`](ui/sensor_button/) | ✅ | ✅ | — | Sensor display + timed toggle action (e.g. temperature + heating boost) |
-| [`climate`](ui/climate/README.md) | ✅ | ✅ | ✅ | Arc setpoint, mode + fan + swing dropdowns, capability auto-detected |
-| [`cover`](ui/cover/README.md) | ✅ | ✅ | ✅ | Blinds, shutters, gates, garage doors — statefull/stateless auto-detected |
-| `fan` | 🔜 | 🔜 | 🔜 | — |
-| `number` | 🔜 | 🔜 | 🔜 | Setpoints, PID targets |
-| `select` | 🔜 | 🔜 | 🔜 | Operating modes, option lists |
-| [`media_player`](ui/media_player/README.md) | — | ✅ | ✅ | Remote-only; transport controls, volume, progress. Optional PIN lock |
-| `lock` | 🔜 | 🔜 | 🔜 | With PIN pad detail page |
-
-Click any type name in the table above for its full variable reference and usage examples.
-
----
-
-## Common variables (all entity types)
-
-| Variable | Required | Description |
+| Type | Detail page | Notes |
 |---|---|---|
-| `uid` | ✅ | Unique identifier — must be unique across your entire config |
-| `entity_id` | ✅ | ESPHome component ID (local) or HA entity e.g. `"light.foo"` (remote) |
-| `row` | ✅ | Grid row (0-based) |
-| `column` | ✅ | Grid column (0-based) |
-| `text` | ✅ | Tile label |
-| `icon` | ✅ | MDI icon glyph e.g. `$mdi_lightbulb` |
-| `row_span` | — | Rows to span (default: `1`) |
-| `column_span` | — | Columns to span (default: `1`) |
-| `page_id` | — | Parent page ID (default: `main_page`) |
+| `light` | yes | RGB, CCT and brightness, auto-detected |
+| `switch` | no | Any toggleable Home Assistant entity |
+| `sensor` | no | Configurable unit and decimal precision |
+| `binary_sensor` | no | Read-only: door, motion, leak |
+| `text_sensor` | no | Any string state or attribute |
+| `button` | no | Momentary press, also for `script.*` and `scene.*` |
+| `sensor_button` | no | Sensor value plus a timed toggle, such as temperature and heating boost |
+| `climate` | yes | Arc setpoint, dropdowns for mode, fan and swing, auto-detected |
+| `cover` | yes | Blinds, shutters, gates, garage doors. Stateful or stateless, auto-detected |
+| `media_player` | yes | Transport controls, volume, progress, optional PIN lock |
 
----
+Every type has a `local` and a `remote` variant, except `media_player`, which is remote only. Planned: `fan`, `number` (setpoints, PID targets), `select` (operating modes, option lists) and `lock` (with a PIN pad detail page).
 
-## Grid layout
+Each type documents its variables and examples in a `README.md` in its folder under [`ui/`](ui/). `sensor_button` lists them in the header of `ui/sensor_button/remote.yaml`.
 
-Pages use LVGL's grid layout. `layout: NxM` creates N rows × M columns.
-
-| Layout | Tiles | Good for |
-|---|---|---|
-| `2x2` | 4 | Small displays |
-| `2x3` | 6 | Portrait or compact |
-| `3x3` | 9 | 480×480 square displays |
-| `4x4` | 16 | Large landscape displays |
-
-Tiles are placed with `row` and `column` (0-based). Use `row_span` / `column_span` to make a tile span multiple cells.
-
-### Multiple pages
-
-Add more pages to the `lvgl.pages` list, include `swipe_navigation.yaml` on each, and set `page_id` on tiles to route them to the right page:
-
-```yaml
-lvgl:
-  pages:
-  - id: main_page
-    layout: 3x3
-    styles: page_style
-    <<: !include esphome-modular-lvgl-buttons/common/swipe_navigation.yaml
-  - id: lights_page
-    layout: 2x3
-    styles: page_style
-    <<: !include esphome-modular-lvgl-buttons/common/swipe_navigation.yaml
-```
-
----
-
-## Icons
-
-Icons use [Material Design Icons](https://materialdesignicons.com/) via substitution variables. Usage: `icon: $mdi_lightbulb`.
-
-The icon name must also be listed as a glyph in your device `font:` block — otherwise it will render as a blank square:
-
-```yaml
-font:
-- file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
-  id: mdi_icons_40
-  size: 40
-  bpp: 8
-  glyphs:
-  - $mdi_lightbulb
-  - $mdi_ceiling_light
-  - $mdi_thermostat
-  # ... add every icon you use
-```
-
-Each detail page type also requires specific glyphs — see the type's `README.md`.
-
----
-
-## Adding your own images
-
-Every `image:` block in this repo uses the platform form introduced in ESPHome
-2026.7.0. If you add images in your own device YAML, the block **must be a list**
-whose entries each carry `platform: file`:
-
-```yaml
-image:
-  - platform: file
-    type: RGB565
-    transparency: alpha_channel
-    file: my_logo.png
-    id: my_logo
-    resize: 100x100
-```
-
-Two failure modes are worth knowing, because neither error message points at the
-file you need to fix:
-
-- **A mapping-shaped `image:` block silently deletes every image the packages
-  define.** Anything under `image:` that is not a list — even just a bare
-  `defaults:` key — replaces the package images instead of adding to them
-  (ESPHome merges two lists by concatenating, but a mapping wins outright). You
-  then get a cascade of `Couldn't find ID 'ha_img'` / `'esphome_img'` /
-  `'hue_ring_img'` errors pointing into `pages/loading.yaml` and
-  `ui/popup/popup_system.yaml`, where the IDs are in fact defined correctly.
-- **Don't fall back to the pre-2026.7 form.** List entries without `platform:`
-  mixed with this repo's platform-tagged entries disable ESPHome's automatic
-  migration entirely, giving
-  `'image' requires a 'platform' key but it was not specified`.
-
----
-
-## Theme
-
-The theme lives in [`common/theme/`](common/theme/README.md) and is a self-contained bundle — one include pulls in colors, fonts, MDI glyph substitutions, and LVGL styles. See the [theme README](common/theme/README.md) for the full color palette, font sizes, and customization reference.
-
-The `common/theme/index.yaml` bundle includes colors, fonts, MDI glyph substitutions, and LVGL styles in one include.
-
-To debug layout, swap to the debug variant which adds red outlines to all widgets:
-
-```yaml
-# theme: !include esphome-modular-lvgl-buttons/common/theme/index.yaml
-  theme: !include esphome-modular-lvgl-buttons/common/theme/index_debug.yaml
-```
-
-Theme appearance is controlled via substitution variables:
-
-| Variable | Default | Description |
-|---|---|---|
-| `button_on_color` | `ep_orange` | Tile background when active/on |
-| `button_off_color` | `very_dark_gray` | Tile background when inactive/off |
-| `icon_on_color` | `yellow` | Icon color when active |
-| `icon_off_color` | `gray` | Icon color when inactive |
-| `label_on_color` | `white` | Label color when active |
-| `label_off_color` | `gray` | Label color when inactive |
-| `icon_font` | `mdi_icons_40` | Font ID used for icons |
-| `text_font` | `nunito_20` | Font ID used for labels |
-
-Available named colors: `ep_orange`, `ep_blue`, `ep_green`, `steel_blue`, `misty_blue`, `very_dark_gray`, `gray800`, `gray900`, and all standard CSS colors.
-
----
-
-## Desktop development with SDL
-
-Test your UI on macOS or Linux without flashing hardware:
-
-```bash
-# macOS
-brew install sdl2
-
-# Ubuntu/Debian
-sudo apt install libsdl2-dev
-```
-
-Use the SDL hardware config instead of a real device:
-
-```yaml
-packages:
-  hardware: !include esphome-modular-lvgl-buttons/hardware/SDL-lvgl.yaml
-  sensors:  !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml
-```
-
-Then `esphome run your-config.yaml` — a window opens simulating the display. See `example_code/modular/SDL-lvgl-display_modular_480px.yaml` for a full working SDL config.
-
----
-
-## Supported hardware
-
-One hardware file per display, in [`hardware/`](hardware/). Include the one matching your
-device (`hardware: !include esphome-modular-lvgl-buttons/hardware/<model>.yaml`). The
-**Driver** column is the ESPHome display platform each file uses.
-
-### Waveshare
-
-| Model | Size | Resolution | Driver |
-|---|---|---|---|
-| `waveshare-esp32-s3-touch-lcd-2.8c` | 2.8" round | 480×480 | `st7701` |
-| `waveshare-esp32-s3-touch-lcd-3.5` | 3.5" | 320×480 | `mipi_spi` |
-| `waveshare-esp32-s3-touch-lcd-3.5b` | 3.5" | 480×320 | `mipi_spi` |
-| `waveshare-esp32-s3-touch-lcd-4` | 4.0" | 480×480 | `st7701` |
-| `waveshare-esp32-s3-touch-lcd-4-v4` | 4.0" | 480×480 | `mipi_rgb` |
-| `waveshare-esp32-s3-touch-lcd-4.3` | 4.3" | 800×480 | `rpi_dpi_rgb` |
-| `waveshare-esp32-s3-touch-lcd-7` | 7.0" | 800×480 | `mipi_rgb` |
-| `waveshare-esp32-s3-touch-lcd-7B` | 7.0" | 1024×600 | `mipi_rgb` |
-| `waveshare-esp32-p4-86-panel` | 86mm | 720×720 | `mipi_dsi` |
-| `waveshare-esp32-p4-wifi6-touch-lcd-3.4c` | 3.4" | 800×800 | `mipi_dsi` |
-| `waveshare-esp32-p4-wifi6-touch-lcd-4b` | 4.0" | 720×720 | `mipi_dsi` |
-| `waveshare-esp32-p4-wifi6-touch-lcd-7` | 7.0" | 720×1280 | `mipi_dsi` |
-| `waveshare-esp32-p4-wifi6-touch-lcd-7b` | 7.0" | 1024×600 | `mipi_dsi` |
-| `waveshare-esp32-p4-wifi6-touch-lcd-10.1` | 10.1" | 800×1280 | `mipi_dsi` |
-| `waveshare-esp32-p4-wifi6-7-DSI-TOUCH-A` | 7.0" | 720×1280 | `mipi_dsi` |
-| `waveshare-esp32-p4-wifi6-10.1-DSI-TOUCH-A` | 10.1" | 800×1280 | `mipi_dsi` |
-| `waveshare-esp32-p4-module-dev-kit-10.1-DSI-TOUCH-A` | 10.1" | 800×1280 | `mipi_dsi` |
-
-The last three entries are **two-piece** combinations — a Raspberry-Pi-form-factor dev
-board with a separate DSI panel on the MIPI-DSI FPC, not an all-in-one unit:
-
-- `waveshare-esp32-p4-wifi6-7-DSI-TOUCH-A` —
-  [ESP32-P4-WIFI6-DEV-KIT](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-DEV-KIT) +
-  [7-DSI-TOUCH-A](https://www.waveshare.com/wiki/7-DSI-TOUCH-A) (ILI9881C, 720×1280, 1Gbps).
-- `waveshare-esp32-p4-wifi6-10.1-DSI-TOUCH-A` — the same WIFI6 DEV-KIT +
-  [10.1-DSI-TOUCH-A](https://www.waveshare.com/wiki/10.1-DSI-TOUCH-A) (JD9365, 800×1280,
-  1.5Gbps).
-- `waveshare-esp32-p4-module-dev-kit-10.1-DSI-TOUCH-A` — that same 10.1 panel on the
-  [ESP32-P4-Module-DEV-KIT](https://www.waveshare.com/wiki/ESP32-P4-Module-DEV-KIT)
-  carrier, which is wired the same way but ships 16MB flash instead of 32MB.
-
-Pass `rotation: "270"` for the landscape mounting on either 10.1 profile. None of these
-boards route an LCD reset or backlight PWM GPIO: panel brightness is written over I2C
-(device `0x45`, register `0x96`) and the GT9271 touch controller is polled, because the
-DSI FPC carries no INT/RST lines. The 10.1 panel additionally has no enable
-GPIO: it is switched on by writing `0x95` on I2C device `0x45`, which ESPHome's `mipi_dsi`
-never does, so both 10.1 profiles replay the vendor's enable sequence at `on_boot`
-priority 900. Without it the boot wedges in the DSI command FIFO after ~19 commands and
-ends in safe mode with a blank panel — see the comments in those files for the details.
-
-### Guition
-
-| Model | Size | Resolution | Driver |
-|---|---|---|---|
-| `guition-esp32-s3-4848s040` | 4.0" | 480×480 | `mipi_rgb` |
-| `guition-esp32-jc4827w543` | 4.3" | 480×272 | `qspi_dbi` |
-| `guition-esp32-jc8048w535` | 3.5" | 480×320 | `axs15231` |
-| `guition-esp32-jc8048w550` | 5.0" | 800×480 | `mipi_rgb` |
-| `guition-esp32-p4-jc1060p470` | 7.0" | 1024×600 | `mipi_dsi` |
-| `guition-esp32-p4-jc1060p470c` | 7.0" | 1024×600 | `mipi_dsi` |
-| `guition-esp32-p4-jc1060p470-v2` | 7.0" | 1024×600 | `mipi_dsi` |
-| `guition-esp32-p4-jc1060p470c-v2` | 7.0" | 1024×600 | `mipi_dsi` |
-| `guition-esp32-p4-jc4880p443` | 4.3" | 480×800 | `mipi_dsi` |
-| `guition-esp32-p4-jc8012p4a1` | 10.1" | 800×1280 | `mipi_dsi` |
-| `guition-esp32-p4-jc8012p4a1-v2` | 10.1" | 800×1280 | `mipi_dsi` |
-| `guition-esp32-p4-jc8012p4a1-v3` | 10.1" | 800×1280 | `mipi_dsi` |
-
-The three `jc8012p4a1` entries are the same 10.1" board at different revisions, and
-picking the wrong one leaves the screen blank or garbled:
-
-- `guition-esp32-p4-jc8012p4a1` — original panel (`JC8012P4A1` init sequence).
-- `guition-esp32-p4-jc8012p4a1-v2` — later units with a different LCD behind the same
-  JD9365 driver, on pre-rev3 ESP32-P4 engineering-sample silicon.
-- `guition-esp32-p4-jc8012p4a1-v3` — same later LCD, on production (rev3) ESP32-P4.
-
-If the display works but the board reboots at boot, or ESPHome rejects
-`engineering_sample`, you are on the wrong one of `-v2` / `-v3` — check the boot log
-for `chip revision: vX.Y`. Both need ESPHome 2026.8.0 or newer.
-
-`guition-esp32-p4-jc1060p470-v2` is the 2026 "New Panel" revision of the 7" board.
-Guition prints "V2" in the SKU or material number on the label on the back of the
-case; boards without that marking use `guition-esp32-p4-jc1060p470`. The wrong
-profile gives a white screen with a vertical noise band. The V2 panel keeps the same
-JD9165 driver but needs its own init sequence and timings, reset on GPIO0 rather than
-GPIO27, and the ESP32-C6 SDIO clock dropped to 10MHz to stop it interfering with the
-MIPI-DSI stream. `guition-esp32-p4-jc1060p470c-v2` is the same panel revision on the
-`-c` board variant, which keeps its own LDO channel, audio pin map and lack of a
-status LED.
-
-### Sunton
-
-| Model | Size | Resolution | Driver |
-|---|---|---|---|
-| `sunton-esp32-2432s028` | 2.8" | 240×320 | `mipi_spi` |
-| `sunton-esp32-2432s028R` | 2.8" | 320×240 | `ili9xxx` |
-| `sunton-esp32-4827s032R` | 3.2" | 480×320 | `rpi_dpi_rgb` |
-| `sunton-esp32-8048s050` | 5.0" | 800×480 | `rpi_dpi_rgb` |
-| `sunton-esp32-8048s070` | 7.0" | 800×480 | `mipi_rgb` |
-
-### Other
-
-| Model | Size | Resolution | Driver |
-|---|---|---|---|
-| `esp32-s3-box-3` | 2.4" | 320×240 | `ili9xxx` |
-| `lilygo-tdisplays3` | 1.9" | 170×320 | `ili9xxx` |
-| `elecrow-esp32-7inch` | 7.0" | 800×480 | `rpi_dpi_rgb` |
-| `SDL-lvgl` | desktop | variable | `host` (SDL) |
-
-`hardware/generic.yaml` is a starting template for boards not listed above.
-Audio/voice add-ons (include *alongside* a screen, not standalone):
-`hardware/media_player-voice_assistant.yaml` and `hardware/guition-esp32-jc4827w543-audio.yaml`.
-
----
-
-## Feature modules
-
-Additional UI modules under `ui/` for specific integrations:
-
-| Module | Description |
-|---|---|
-| `ui/clawdmeter/` | 🐾 **Animated Claude token-usage display** (this fork). Pixel-art creature whose mood tracks your usage + a stats panel with usage bars, time-to-100 %, reset clocks, Runway and an optional colour-coded pace frame. 4 languages (en/de/fr/es). Render-only — needs the [ha-clawdmeter](https://github.com/corgan2222/ha-clawdmeter) HA integration; see [ui/clawdmeter/README.md](ui/clawdmeter/README.md). |
-| `ui/clock/flip_clock.yaml` | Gluqlo-style flip clock widget |
-| `ui/weather/today.yaml` | Current weather tile from HA weather entity |
-| `ui/weather/forecast.yaml` | 4-day forecast widget via `weather.get_forecasts` |
-| `ui/solar/` | Enphase / solar production and consumption monitoring |
-| `ui/tides/tide_update.yaml` | NOAA tide clock with gauge display |
-| `ui/tides/NOAA_tide_update.yaml` | NOAA CO-OPS API tide data with HA sensors (level, percentage, high/low times). Vars: `noaa_station_id`, `noaa_unit_system` (`english`/`metric`), `noaa_unit_of_measurement` (`ft`/`m`). |
-
-See `example_code/advanced/` for full working configs using these modules.
-
----
+The [tile panel guide](docs/tile-panels.md) covers tile variables, grid layout, pages, theme and icons. It also covers your own images, the SDL desktop preview and the feature modules for clock, weather, solar and tides.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
