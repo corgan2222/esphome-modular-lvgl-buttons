@@ -54,6 +54,11 @@ substitutions:
   # so render that one with `-s sim_extra ""` to silence the missing publishes.
   sim_extra: "id(clawd_m_weekly_pct).publish_state(46.0f); id(clawd_m_extra_pct).publish_state(12.0f); id(clawd_m_extra_credits).publish_state(3.0f);"
 
+  # Weekly mode (plan without a five-hour window, e.g. Ultra): "1" switches the
+  # engine into weekly mode and feeds pace + model values, with the reset two
+  # days away so the weekday shows. Use together with sim_feed=1.
+  sim_weekly: "0"
+
 esphome:
   name: clawdmeter-sdl
   friendly_name: Clawdmeter SDL
@@ -100,20 +105,52 @@ interval:
           id(clawd_rw_runway_usage).publish_state(sess);
           id(clawd_m_session_pct).publish_state(sess);
           ${sim_extra}
-          // ISO-8601 UTC reset timestamps (now+3h session, now+4d weekly) so the
-          // reset-clock tiles parse and render HH:MM. Host wall-clock is valid.
+          const bool weekly = std::string("${sim_weekly}") == "1";
+          if (weekly) {
+            clawd_set_weekly_mode(true);
+            clawd_set_week_pace(-43.4f);
+            id(clawd_week_pace).publish_state(-43.4f);
+            id(clawd_model_pct).publish_state(7.0f);
+            id(clawd_model_allow).publish_state(50.0f);
+            id(clawd_model_name).publish_state("Fable");
+          }
+          // ISO-8601 UTC reset timestamps (now+3h session, now+4d weekly; in
+          // weekly mode both now+2d4h) so the reset-clock tiles parse and render
+          // HH:MM. Host wall-clock is valid.
           time_t nowt = ::time(nullptr);
           if (nowt > 1000000) {
             char buf[40]; struct tm tmv;
-            time_t r1 = nowt + 3 * 3600;  gmtime_r(&r1, &tmv);
+            time_t r1 = nowt + (weekly ? (2 * 86400 + 4 * 3600) : 3 * 3600);  gmtime_r(&r1, &tmv);
             snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d+00:00",
                      tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
             id(clawd_reset_reset_src).publish_state(std::string(buf));
-            time_t r2 = nowt + 4 * 86400; gmtime_r(&r2, &tmv);
+            time_t r2 = weekly ? r1 : nowt + 4 * 86400; gmtime_r(&r2, &tmv);
             snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d+00:00",
                      tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
             id(clawd_wreset_reset_src).publish_state(std::string(buf));
           }
+
+# Stand-ins for the weekly-mode values that render_from_integration.yaml mirrors
+# from Home Assistant on a real device; fed by the sim above when sim_weekly=1.
+sensor:
+  - platform: template
+    id: clawd_week_pace
+    internal: true
+    update_interval: never
+  - platform: template
+    id: clawd_model_pct
+    internal: true
+    update_interval: never
+  - platform: template
+    id: clawd_model_allow
+    internal: true
+    update_interval: never
+
+text_sensor:
+  - platform: template
+    id: clawd_model_name
+    internal: true
+    update_interval: never
 
 packages:
   sensors:  !include esphome-modular-lvgl-buttons/common/sensors_base_sdl.yaml

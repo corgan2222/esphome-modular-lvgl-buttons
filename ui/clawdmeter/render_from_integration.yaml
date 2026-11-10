@@ -13,6 +13,15 @@
 #   sensor      clawd_rw_runway_ratio   <- binary limit_reached_before_reset (0/2 for the hit-card)
 #   sensor      clawd_pf_band           <- sensor.${ha_account}_pace_frame enum (0/1/2 for pace_frame)
 #
+# Plans without a five-hour window (e.g. Ultra): the integration then feeds the
+# weekly window through the session entities and marks them `window: weekly`.
+#   text_sensor clawd_window            <- attribute `window` of ..._session_usage
+#                                          (switches the engine into weekly mode)
+#   sensor      clawd_week_pace         <- sensor.${ha_account}_weekly_pace (%, +ahead/-behind)
+#   sensor      clawd_model_pct         <- sensor.${ha_account}_weekly_model_usage (%)
+#   text_sensor clawd_model_name        <- its attribute `model`
+#   sensor      clawd_model_allow       <- its attribute `allowance_percent_of_weekly`
+#
 # All HA mirrors are internal: true (the integration already exposes the real values
 # in HA — no duplicate device entities). The id()-readers in layout_modern.yaml /
 # pace_frame.yaml are unaffected. Lang strings (t_ttl_*, t_runway_*) come from the
@@ -44,6 +53,25 @@ sensor:
   - platform: homeassistant
     id: clawd_rw_margin_src
     entity_id: sensor.${ha_account}_runway_margin
+    internal: true
+
+  # --- Weekly pace (feeds the creature in weekly mode) and the busiest model's
+  #     own weekly cap. Only shown by the layouts in weekly mode. ---
+  - platform: homeassistant
+    id: clawd_week_pace
+    entity_id: sensor.${ha_account}_weekly_pace
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_week_pace(x);'
+  - platform: homeassistant
+    id: clawd_model_pct
+    entity_id: sensor.${ha_account}_weekly_model_usage
+    internal: true
+  - platform: homeassistant
+    id: clawd_model_allow
+    entity_id: sensor.${ha_account}_weekly_model_usage
+    attribute: allowance_percent_of_weekly
     internal: true
 
   # --- Hit-card colour ratio: 0.0 (safe/green) or 2.0 (over) from the binary.
@@ -81,6 +109,23 @@ binary_sensor:
     internal: true
 
 text_sensor:
+  # --- Which window the session entities carry: "session" (five-hour window) or
+  #     "weekly" (plan without one). Missing attribute = older integration =
+  #     session behaviour. ---
+  - platform: homeassistant
+    id: clawd_window
+    entity_id: sensor.${ha_account}_session_usage
+    attribute: window
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_weekly_mode(x == "weekly");'
+  - platform: homeassistant
+    id: clawd_model_name
+    entity_id: sensor.${ha_account}_weekly_model_usage
+    attribute: model
+    internal: true
+
   # --- pace_frame enum source (green/orange/red) ---
   - platform: homeassistant
     id: clawd_pf_enum_src
@@ -178,13 +223,16 @@ text_sensor:
                        !std::isnan(id(clawd_rw_margin_src).state);
       int m = 0;
       if (margin_ok) { m = (int) id(clawd_rw_margin_src).state; if (m < 0) m = -m; }
-      char buf[32];
+      // Duration as "45 min" / "20h 39m" / "8d 08h" (clawdmeter_engine.h).
+      char dur[24];
+      clawd_fmt_duration_line(m, "${t_modern_min | default("min")}", dur, sizeof(dur));
+      char buf[40];
       if (id(clawd_rw_over_src).state) {
-        snprintf(buf, sizeof(buf), "${t_runway_short | default("Yes · %dm early")}", m);
+        snprintf(buf, sizeof(buf), "${t_runway_short_dur | default("Yes · %s early")}", dur);
         return std::string(buf);
       }
       if (margin_ok) {
-        snprintf(buf, sizeof(buf), "${t_runway_spare | default("No · %dm to spare")}", m);
+        snprintf(buf, sizeof(buf), "${t_runway_spare_dur | default("No · %s to spare")}", dur);
         return std::string(buf);
       }
       return std::string("${t_runway_clear | default("No")}");

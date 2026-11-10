@@ -68,6 +68,10 @@ substitutions:
   t_runway_short:   'Sí \xC2\xB7 %d min antes'
   t_runway_clear:   'No'
   t_runway_unknown: 'desconocido'
+  # Same verdict with a ready-made duration ("45 min", "20h 39m", "8d 08h") —
+  # used by render_from_integration.yaml.
+  t_runway_spare_dur: 'No \xC2\xB7 %s de margen'
+  t_runway_short_dur: 'Sí \xC2\xB7 %s antes'
 
   # ---- remote.yaml: single-page (non-grid) stats labels ----
   t_rmt_session:       'Actual  %d%%'
@@ -99,6 +103,15 @@ substitutions:
   t_modern_reset_fmt:    'Reset %s'
   t_modern_eta_fmt:      'ETA %s'
   t_modern_credits_fmt:  '%.1f cr'
+  # Weekly mode (plan without a five-hour window, e.g. Ultra)
+  t_modern_week:         'Semana'
+  t_modern_till_week:    'Hasta límite semanal'
+  t_modern_pace:         'Ritmo semanal'
+  t_modern_pace_under:   'bajo el plan'
+  t_modern_pace_over:    'sobre el plan'
+  t_modern_model:        'Modelo'
+  t_modern_model_cap:    'máx %d%%'
+  t_weekdays:            'dom,lun,mar,mié,jue,vie,sáb'
 
   # ---- charts page (charts_page.yaml) ----
   # Plain LVGL label strings (no printf placeholders). Leading/trailing spaces are

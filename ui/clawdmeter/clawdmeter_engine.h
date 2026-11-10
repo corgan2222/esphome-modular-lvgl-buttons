@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include <cmath>
 
 // ---- monotonic time source -------------------------------------------------
 // ESPHome already provides esphome::millis(); declaring our own global millis()
@@ -42,9 +43,23 @@ inline uint8_t oldest_idx() { return (g_head + CLAWD_RING_SIZE - g_count) % CLAW
 inline void rate_reset() { g_count = 0; g_head = 0; }
 }  // namespace clawd_detail
 
+namespace clawd_detail {
+// Weekly mode state (see "weekly mode" below). Tracked on every sample, read
+// only while weekly mode is on, so the session-window path is unaffected.
+static float    g_prev_pct = -1.0f;
+static uint32_t g_rise_ms  = 0;
+static bool     g_rise     = false;
+}  // namespace clawd_detail
+
 inline void clawd_usage_sample(float session_pct) {
   using namespace clawd_detail;
   uint32_t now = clawd_now();
+  // Remember the last time usage went up, for the weekly-mode "working" hold.
+  if (g_prev_pct >= 0.0f && session_pct >= g_prev_pct + 0.5f) {
+    g_rise = true;
+    g_rise_ms = now;
+  }
+  g_prev_pct = session_pct;
   if (g_count > 0) {
     uint8_t latest = (g_head + CLAWD_RING_SIZE - 1) % CLAWD_RING_SIZE;
     if (session_pct + 5.0f < g_ring[latest].pct) {
@@ -115,6 +130,81 @@ inline const char* clawd_usage_group_name(int g) {
     case 3: return "heavy";
     default: return "?";
   }
+}
+
+// ---- weekly mode (plans without a five-hour window) -------------------------
+// Some plans (e.g. Ultra) have no five-hour session window; the integration
+// then feeds the weekly window through the session entities and marks them
+// `window: weekly`. Weekly usage moves in whole-percent steps a few times a
+// day, so the burn-rate groups above would keep the creature asleep forever.
+// In weekly mode the mood comes from the weekly pace instead (how far usage is
+// ahead (+) or behind (-) an even spread over the week), and any rise in usage
+// keeps the creature at least "normal" (working) for CLAWD_WORK_HOLD_MS.
+#define CLAWD_WORK_HOLD_MS     1800000UL  // 30 min of "working" after a rise
+#define CLAWD_PACE_IDLE_MAX    -20.0f     // pace below this -> idle
+#define CLAWD_PACE_NORMAL_MAX  0.0f       // below this -> normal
+#define CLAWD_PACE_ACTIVE_MAX  10.0f      // below this -> active, else heavy
+
+namespace clawd_detail {
+static bool  g_weekly    = false;
+static float g_week_pace = NAN;
+}  // namespace clawd_detail
+
+inline void clawd_set_weekly_mode(bool on) { clawd_detail::g_weekly = on; }
+inline bool clawd_weekly_mode() { return clawd_detail::g_weekly; }
+inline void clawd_set_week_pace(float pace) { clawd_detail::g_week_pace = pace; }
+
+// Animation group 0..3 for weekly mode, same scale as clawd_usage_group().
+inline int clawd_weekly_group() {
+  using namespace clawd_detail;
+  int g = 0;
+  if (!std::isnan(g_week_pace)) {
+    if (g_week_pace < CLAWD_PACE_IDLE_MAX)        g = 0;
+    else if (g_week_pace < CLAWD_PACE_NORMAL_MAX) g = 1;
+    else if (g_week_pace < CLAWD_PACE_ACTIVE_MAX) g = 2;
+    else                                          g = 3;
+  }
+  if (g < 1 && g_rise && clawd_now() - g_rise_ms < CLAWD_WORK_HOLD_MS) g = 1;
+  return g;
+}
+
+// ---- duration formatting ----------------------------------------------------
+// Minutes as a big and a small part, precision falling with size:
+//   under 60 min -> "45"  + min_unit
+//   under 24 h   -> "20h" + "39m"
+//   otherwise    -> "8d"  + "08h"
+// Negative input counts as 0; anything past 99 days is capped (garbage guard).
+inline void clawd_fmt_duration(int mins, const char *min_unit,
+                               char *big, size_t nbig, char *small, size_t nsmall) {
+  if (mins < 0) mins = 0;
+  if (mins > 99 * 1440 + 1439) mins = 99 * 1440 + 1439;
+  if (mins < 60) {
+    snprintf(big, nbig, "%d", mins);
+    snprintf(small, nsmall, "%s", min_unit);
+  } else if (mins < 1440) {
+    snprintf(big, nbig, "%dh", mins / 60);
+    snprintf(small, nsmall, "%02dm", mins % 60);
+  } else {
+    snprintf(big, nbig, "%dd", mins / 1440);
+    snprintf(small, nsmall, "%02dh", (mins % 1440) / 60);
+  }
+}
+
+// First run of digits in `s` as an int ("in 45 min" -> 45), or -1 if none.
+inline int clawd_first_int(const char *s) {
+  if (!s) return -1;
+  while (*s && (*s < '0' || *s > '9')) s++;
+  if (!*s) return -1;
+  long v = 0;
+  while (*s >= '0' && *s <= '9' && v < 100000000L) v = v * 10 + (*s++ - '0');
+  return (int) v;
+}
+
+// Same as clawd_fmt_duration, joined into one string: "45 min", "20h 39m", "8d 08h".
+inline void clawd_fmt_duration_line(int mins, const char *min_unit, char *out, size_t n) {
+  char big[12], small[12];
+  clawd_fmt_duration(mins, min_unit, big, sizeof(big), small, sizeof(small));
+  snprintf(out, n, "%s %s", big, small);
 }
 
 // ---- ISO-8601 timestamp -> "minutes from now" -----------------------------
@@ -255,7 +345,7 @@ inline void pick_for_rate() {
     }
     return;
   }
-  int g = clawd_usage_group();
+  int g = g_weekly ? clawd_weekly_group() : clawd_usage_group();
   if (g < 0 || g >= CLAWD_GROUP_COUNT) g = 0;
   if (g_group_size[g] == 0) return;
   uint8_t slot = g_group_rot[g] % g_group_size[g];
