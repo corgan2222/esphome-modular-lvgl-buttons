@@ -100,6 +100,7 @@ lvgl:
                         pad_all: 0
               # ===== Session hero =====
               - label:
+                  id: clawd_m_hero_title
                   text: ${t_modern_session | default("Session")}
                   x: 40
                   y: 509
@@ -136,6 +137,7 @@ lvgl:
                   text_font: nunito_48
                   text_color: white
               - label:
+                  id: clawd_m_session_unit
                   text: ${t_modern_min | default("min")}
                   align: TOP_RIGHT
                   x: -40
@@ -172,6 +174,7 @@ lvgl:
                   pad_all: 0
                   widgets:
                     - label:
+                        id: clawd_m_till_title
                         text: ${t_modern_till | default("Time till 100%")}
                         x: 30
                         y: 26
@@ -193,6 +196,7 @@ lvgl:
                         text_font: nunito_48
                         text_color: amber
                     - label:
+                        id: clawd_m_till_unit
                         text: ${t_modern_min | default("min")}
                         align: TOP_RIGHT
                         x: -37
@@ -260,6 +264,43 @@ lvgl:
                         y: 112
                         text_font: nunito_18
                         text_color: misty_blue
+              # ===== Weekly-pace card: replaces the burn card in weekly mode =====
+              # Same box as the burn card, hidden until the refresh script sees
+              # weekly mode (in weekly mode the burn rate is almost always 0).
+              - obj:
+                  id: clawd_m_card_pace
+                  x: 40
+                  y: 899
+                  width: 348
+                  height: 154
+                  radius: 26
+                  border_width: 0
+                  bg_color: slate_blue_gray
+                  bg_opa: COVER
+                  pad_all: 0
+                  hidden: true
+                  widgets:
+                    - label:
+                        text: ${t_modern_pace | default("Weekly pace")}
+                        x: 27
+                        y: 22
+                        text_font: nunito_20
+                        text_color: white
+                    - label:
+                        id: clawd_m_pace_num
+                        text: "--"
+                        x: 27
+                        y: 64
+                        text_font: nunito_36
+                        text_color: ep_green
+                    - label:
+                        id: clawd_m_pace_note
+                        text: ""
+                        align: TOP_RIGHT
+                        x: -27
+                        y: 22
+                        text_font: nunito_20
+                        text_color: misty_blue
               # ===== Will-hit-limit card (runway verdict) =====
               - obj:
                   id: clawd_m_card_hit
@@ -307,6 +348,7 @@ lvgl:
                   pad_all: 0
                   widgets:
                     - label:
+                        id: clawd_m_weekly_title
                         text: ${t_modern_weekly | default("Weekly")}
                         x: 27
                         y: 22
@@ -418,16 +460,54 @@ script:
       - lvgl.bar.update:
           id: clawd_m_session_bar
           value: !lambda 'return (id(clawd_m_session_pct).has_state() && !std::isnan(id(clawd_m_session_pct).state)) ? (int) id(clawd_m_session_pct).state : 0;'
+      # Weekly mode (plan without a five-hour window, clawd_weekly_mode()): the hero
+      # is the week and the time card counts to the weekly limit.
+      - lvgl.label.update:
+          id: clawd_m_hero_title
+          text: !lambda 'return std::string(clawd_weekly_mode() ? "${t_modern_week | default("Week")}" : "${t_modern_session | default("Session")}");'
+      # Durations: "45" min / "20h" 39m / "8d" 08h — big part in the number label,
+      # rest in the unit label (clawd_fmt_duration in clawdmeter_engine.h).
       - lvgl.label.update:
           id: clawd_m_session_min
-          text: !lambda 'return id(clawd_reset_reset_in_min).has_state() ? to_string((int) id(clawd_reset_reset_in_min).state) : std::string("0");'
+          text: !lambda |-
+            if (!id(clawd_reset_reset_in_min).has_state() || std::isnan(id(clawd_reset_reset_in_min).state)) return std::string("0");
+            char big[12], small[12];
+            clawd_fmt_duration((int) id(clawd_reset_reset_in_min).state, "${t_modern_min | default("min")}", big, sizeof(big), small, sizeof(small));
+            return std::string(big);
+      - lvgl.label.update:
+          id: clawd_m_session_unit
+          text: !lambda |-
+            if (!id(clawd_reset_reset_in_min).has_state() || std::isnan(id(clawd_reset_reset_in_min).state)) return std::string("${t_modern_min | default("min")}");
+            char big[12], small[12];
+            clawd_fmt_duration((int) id(clawd_reset_reset_in_min).state, "${t_modern_min | default("min")}", big, sizeof(big), small, sizeof(small));
+            return std::string(small);
+      # "Reset 08:00"; more than a day away the weekday goes in front ("Reset Wed 08:00").
       - lvgl.label.update:
           id: clawd_m_session_reset
           text: !lambda |-
             if (!id(clawd_reset_reset_clock).has_state()) return std::string("");
-            char b[28];
-            snprintf(b, sizeof(b), "${t_modern_reset_fmt | default("Reset %s")}", id(clawd_reset_reset_clock).state.c_str());
+            std::string when = id(clawd_reset_reset_clock).state;
+            if (id(clawd_reset_reset_in_min).has_state() && id(clawd_reset_reset_in_min).state >= 1440 &&
+                id(clawd_reset_reset_epoch) != 0) {
+              ESPTime t = ESPTime::from_epoch_local((time_t) id(clawd_reset_reset_epoch));
+              std::string days = "${t_weekdays | default("Sun,Mon,Tue,Wed,Thu,Fri,Sat")}";
+              int want = t.day_of_week - 1;  // ESPTime: 1 = Sunday
+              size_t start = 0;
+              for (int i = 0; i < want && start != std::string::npos; i++) {
+                start = days.find(',', start);
+                if (start != std::string::npos) start++;
+              }
+              if (start != std::string::npos) {
+                size_t end = days.find(',', start);
+                when = days.substr(start, end == std::string::npos ? std::string::npos : end - start) + " " + when;
+              }
+            }
+            char b[40];
+            snprintf(b, sizeof(b), "${t_modern_reset_fmt | default("Reset %s")}", when.c_str());
             return std::string(b);
+      - lvgl.label.update:
+          id: clawd_m_till_title
+          text: !lambda 'return std::string(clawd_weekly_mode() ? "${t_modern_till_week | default("Till weekly limit")}" : "${t_modern_till | default("Time till 100%")}");'
       - lvgl.label.update:
           id: clawd_m_till_num
           # clawd_ttl_time_to_100 is a text_sensor ("in 45 min" / localized / "unknown").
@@ -435,10 +515,19 @@ script:
           # duplication, locale-robust (every t_ttl_mins variant embeds the %d digits).
           text: !lambda |-
             if (!id(clawd_ttl_time_to_100).has_state()) return std::string("0");
-            const std::string &s = id(clawd_ttl_time_to_100).state;
-            size_t i = 0; while (i < s.size() && (s[i] < '0' || s[i] > '9')) i++;
-            size_t j = i; while (j < s.size() && s[j] >= '0' && s[j] <= '9') j++;
-            return i == j ? std::string("--") : s.substr(i, j - i);
+            int m = clawd_first_int(id(clawd_ttl_time_to_100).state.c_str());
+            if (m < 0) return std::string("--");
+            char big[12], small[12];
+            clawd_fmt_duration(m, "${t_modern_min | default("min")}", big, sizeof(big), small, sizeof(small));
+            return std::string(big);
+      - lvgl.label.update:
+          id: clawd_m_till_unit
+          text: !lambda |-
+            int m = id(clawd_ttl_time_to_100).has_state() ? clawd_first_int(id(clawd_ttl_time_to_100).state.c_str()) : -1;
+            if (m < 0) return std::string("${t_modern_min | default("min")}");
+            char big[12], small[12];
+            clawd_fmt_duration(m, "${t_modern_min | default("min")}", big, sizeof(big), small, sizeof(small));
+            return std::string(small);
       - lvgl.bar.update:
           id: clawd_m_till_bar
           value: !lambda 'return (id(clawd_m_session_pct).has_state() && !std::isnan(id(clawd_m_session_pct).state)) ? (int) id(clawd_m_session_pct).state : 0;'
@@ -455,6 +544,40 @@ script:
       - lvgl.label.update:
           id: clawd_m_burn30
           text: !lambda 'return id(clawd_burn30_rate).has_state() ? to_string((int) id(clawd_burn30_rate).state) : std::string("0");'
+      # Weekly mode: the pace card ("-43%  under plan") takes the burn card's place.
+      - if:
+          condition:
+            lambda: 'return clawd_weekly_mode();'
+          then:
+            - lvgl.widget.hide: clawd_m_card_burn
+            - lvgl.widget.show: clawd_m_card_pace
+            - lvgl.label.update:
+                id: clawd_m_pace_num
+                text: !lambda |-
+                  if (!id(clawd_week_pace).has_state() || std::isnan(id(clawd_week_pace).state)) return std::string("--");
+                  char b[12];
+                  snprintf(b, sizeof(b), "%+d%%", (int) std::lround(id(clawd_week_pace).state));
+                  return std::string(b);
+            # Ahead of an even spread over the week (> 0) = red, else green.
+            - if:
+                condition:
+                  lambda: 'return id(clawd_week_pace).has_state() && id(clawd_week_pace).state > 0.0f;'
+                then:
+                  - lvgl.label.update:
+                      id: clawd_m_pace_num
+                      text_color: crimson
+                else:
+                  - lvgl.label.update:
+                      id: clawd_m_pace_num
+                      text_color: ep_green
+            - lvgl.label.update:
+                id: clawd_m_pace_note
+                text: !lambda |-
+                  if (!id(clawd_week_pace).has_state() || std::isnan(id(clawd_week_pace).state)) return std::string("");
+                  return std::string(id(clawd_week_pace).state > 0.0f ? "${t_modern_pace_over | default("over plan")}" : "${t_modern_pace_under | default("under plan")}");
+          else:
+            - lvgl.widget.hide: clawd_m_card_pace
+            - lvgl.widget.show: clawd_m_card_burn
       # "Will hit limit" header gets the verdict word appended ("- No"/"- Yes"),
       # parsed out of the runway text sensor (text before the middle dot ·).
       - lvgl.label.update:
@@ -506,15 +629,41 @@ script:
             - lvgl.label.update:
                 id: clawd_m_hit_num
                 text_color: ep_green
-      - lvgl.label.update:
-          id: clawd_m_weekly_num
-          text: !lambda 'return id(clawd_m_weekly_pct).has_state() ? (to_string((int) id(clawd_m_weekly_pct).state) + "%") : std::string("0%");'
-      - lvgl.bar.update:
-          id: clawd_m_weekly_bar
-          value: !lambda 'return (id(clawd_m_weekly_pct).has_state() && !std::isnan(id(clawd_m_weekly_pct).state)) ? (int) id(clawd_m_weekly_pct).state : 0;'
-      - lvgl.label.update:
-          id: clawd_m_weekly_reset
-          text: !lambda 'return id(clawd_wreset_reset_clock).has_state() ? id(clawd_wreset_reset_clock).state : std::string("");'
+      # Weekly card: in weekly mode the hero already shows the week, so this card
+      # shows the busiest model's own weekly cap instead ("Fable  max 50%  7%").
+      - if:
+          condition:
+            lambda: 'return clawd_weekly_mode();'
+          then:
+            - lvgl.label.update:
+                id: clawd_m_weekly_title
+                text: !lambda 'return (id(clawd_model_name).has_state() && !id(clawd_model_name).state.empty()) ? id(clawd_model_name).state : std::string("${t_modern_model | default("Model")}");'
+            - lvgl.label.update:
+                id: clawd_m_weekly_num
+                text: !lambda 'return (id(clawd_model_pct).has_state() && !std::isnan(id(clawd_model_pct).state)) ? (to_string((int) id(clawd_model_pct).state) + "%") : std::string("--");'
+            - lvgl.bar.update:
+                id: clawd_m_weekly_bar
+                value: !lambda 'return (id(clawd_model_pct).has_state() && !std::isnan(id(clawd_model_pct).state)) ? (int) id(clawd_model_pct).state : 0;'
+            - lvgl.label.update:
+                id: clawd_m_weekly_reset
+                text: !lambda |-
+                  if (!id(clawd_model_allow).has_state() || std::isnan(id(clawd_model_allow).state)) return std::string("");
+                  char b[24];
+                  snprintf(b, sizeof(b), "${t_modern_model_cap | default("max %d%%")}", (int) id(clawd_model_allow).state);
+                  return std::string(b);
+          else:
+            - lvgl.label.update:
+                id: clawd_m_weekly_title
+                text: ${t_modern_weekly | default("Weekly")}
+            - lvgl.label.update:
+                id: clawd_m_weekly_num
+                text: !lambda 'return id(clawd_m_weekly_pct).has_state() ? (to_string((int) id(clawd_m_weekly_pct).state) + "%") : std::string("0%");'
+            - lvgl.bar.update:
+                id: clawd_m_weekly_bar
+                value: !lambda 'return (id(clawd_m_weekly_pct).has_state() && !std::isnan(id(clawd_m_weekly_pct).state)) ? (int) id(clawd_m_weekly_pct).state : 0;'
+            - lvgl.label.update:
+                id: clawd_m_weekly_reset
+                text: !lambda 'return id(clawd_wreset_reset_clock).has_state() ? id(clawd_wreset_reset_clock).state : std::string("");'
       - lvgl.label.update:
           id: clawd_m_extra_num
           text: !lambda 'return id(clawd_m_extra_pct).has_state() ? (to_string((int) id(clawd_m_extra_pct).state) + "%") : std::string("0%");'
