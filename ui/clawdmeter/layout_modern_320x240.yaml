@@ -270,9 +270,8 @@ script:
             char b[40];
             snprintf(b, sizeof(b), "${t_modern_reset_fmt | default("Reset %s")}", when.c_str());
             return std::string(b);
-      - lvgl.label.update:
-          id: clawd_m_till_title
-          text: !lambda 'return std::string(clawd_weekly_mode() ? "${t_modern_till_week | default("Till weekly limit")}" : "${t_modern_till | default("Time till 100%")}");'
+      # clawd_m_till_title keeps "Time till 100%" in weekly mode too: the card is
+      # ~150 px wide and "Till weekly limit" runs into a two-digit number.
       - lvgl.label.update:
           id: clawd_m_till_num
           # clawd_ttl_time_to_100 is a text_sensor ("in 45 min" / localized).
