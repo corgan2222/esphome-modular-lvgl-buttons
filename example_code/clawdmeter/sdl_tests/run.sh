@@ -32,11 +32,11 @@ mkdir -p "$OUT"
 # name                          harness        W     H     pages
 DISPLAYS=(
   "jc4827w543                   single         480   272   1"
-  "jc8048w535                   single         800   480   1"
+  "jc8048w535                   single         320   480   1"
   "jc4880p443                   single         800   480   1"
   "jc8012p4a1                   single         800   1280  1"
   "sunton-2432s028              single_small   320   240   1"
-  "waveshare-wifi6-touch-lcd-7  single         1024  600   1"
+  "waveshare-wifi6-touch-lcd-7  single         720   1280  1"
   "s3-4848s040                  square         480   480   2"
   "waveshare-86-panel           square         720   720   2"
   "jc4880p443-grid              grid           800   480   1"
@@ -62,7 +62,8 @@ for row in "${DISPLAYS[@]}"; do
   fi
 
   kill_prog
-  ( cd "$(dirname "$BIN")" && ./program >/tmp/clawd_run.log 2>&1 & )
+  # Start it by its full path: kill_prog finds the process by that path.
+  ( cd "$(dirname "$BIN")" && "$BIN" >/tmp/clawd_run.log 2>&1 & )
 
   args=(--name clawdmeter-sdl --settle 3 --out "$OUT/$name.png")
   [ "$pages" = "2" ] && args+=(--pages 2 --swipe next)
