@@ -103,14 +103,14 @@ Two design families:
 | `design:` value | Layout file | Resolution | Example board (shipped config) |
 |---|---|---|---|
 | `modern` | `layout_modern.yaml` | 480×800 portrait | Guition ESP32-P4 JC4880P443 (portrait) — **the live device** |
-| `modern_landscape` | `layout_modern_landscape.yaml` | 800×480 landscape | Guition ESP32-P4 JC4880P443 (landscape) |
+| `modern_landscape` | `layout_modern_landscape.yaml` | 800×480 landscape | Guition ESP32-P4 JC4880P443 (landscape); Sunton ESP32-S3-8048S043 (untested on hardware) |
 | `modern_square` | `layout_modern_square.yaml` | 480×480 square | Guition ESP32-S3-4848S040 |
 | `modern_720` | `layout_modern_720.yaml` | 720×720 square | Waveshare ESP32-P4-86-Panel |
-| `modern_1280` | `layout_modern_1280.yaml` | 800×1280 portrait | Guition ESP32-P4 JC8012P4A1 |
+| `modern_1280` | `layout_modern_1280.yaml` | 800×1280 portrait | Guition ESP32-P4 JC8012P4A1; JC8012P4A1 V2 and V3, Waveshare ESP32-P4-Module-DEV-KIT and ESP32-P4-WIFI6 with 10.1-DSI-TOUCH-A (untested on hardware) |
 | `modern_320x240` | `layout_modern_320x240.yaml` | 320×240 landscape · **compact** | Sunton ESP32-2432S028 |
 | `modern_320x480` | `layout_modern_320x480.yaml` | 320×480 portrait | Guition ESP32-JC8048W535 |
 | `modern_480x272` | `layout_modern_480x272.yaml` | 480×272 landscape | Guition ESP32-JC4827W543 |
-| `modern_720x1280` | `layout_modern_720x1280.yaml` | 720×1280 portrait | Waveshare ESP32-P4 WiFi6 Touch LCD 7 |
+| `modern_720x1280` | `layout_modern_720x1280.yaml` | 720×1280 portrait | Waveshare ESP32-P4 WiFi6 Touch LCD 7; Waveshare ESP32-P4-WIFI6 with 7-DSI-TOUCH-A (untested on hardware) |
 
 All nine formats ship as ready-to-flash grid device configs in
 [`example_code/clawdmeter/grid/`](../../example_code/clawdmeter/grid/) (the
@@ -118,6 +118,30 @@ All nine formats ship as ready-to-flash grid device configs in
 format by setting `design:`. All nine are rendered headless in the
 [SDL preview](../../example_code/clawdmeter/sdl_tests/) (`sdl_modern*` harnesses)
 on every layout change.
+
+### Weekly mode (plans without a five-hour window)
+
+Some plans, such as Ultra, have no five-hour session window. The
+ha-clawdmeter integration then feeds the weekly window through the session
+entities and marks them with the attribute `window: weekly`. The display reads
+that attribute and switches to weekly mode on its own; there is nothing to
+configure.
+
+- The creature's mood follows the weekly pace (how far usage is ahead of or
+  behind an even spread over the week), and any rise in usage keeps it
+  working for 30 minutes.
+- The modern layouts `modern`, `modern_1280`, `modern_720x1280` and
+  `modern_landscape` show the week in the hero, count down to the weekly
+  limit, replace the burn-rate card with a weekly-pace card and show the
+  busiest model's own weekly cap in place of the weekly card. The other
+  layouts keep their session view.
+
+Without `window: weekly` (a plan with a five-hour window, or an older
+integration) nothing changes.
+
+Long durations read as `45 min`, `20h 39m` or `8d 08h` in the four layouts
+above and in the runway line, and a reset more than a day away carries its
+weekday.
 
 ### Modern layouts at a glance
 
