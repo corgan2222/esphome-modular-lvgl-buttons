@@ -234,7 +234,7 @@ interval:
               snprintf(b30, sizeof(b30), "%.1f", id(${burn30_id}).state);
             else snprintf(b30, sizeof(b30), "--");
             char buf[48];
-            snprintf(buf, sizeof(buf), "${t_fmt_burn | default("Burn  5m %s  \xC2\xB7  30m %s %%/h")}", b5, b30);
+            snprintf(buf, sizeof(buf), "${t_fmt_burn | default("Burn  5m %s  ·  30m %s %%/h")}", b5, b30);
             return std::string(buf);
 
       # ---- Runway line: does the session reset BEFORE it hits the limit? ----
