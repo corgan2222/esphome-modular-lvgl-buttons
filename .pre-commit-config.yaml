@@ -9,6 +9,12 @@
 #
 # The `esphome-config` hook validates every example file in example_code/
 # against the ESPHome schema; this is the authoritative check.
+#
+# On push, two more hooks mirror .github/workflows/ci.yml: the engine unit
+# test and `esphome config` over all example configs, each only when the push
+# changes a file it reads. ESPHome comes into a hook environment of its own,
+# installed on first use, so it does not have to be on PATH.
+default_install_hook_types: [pre-commit, pre-push]
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -24,7 +30,7 @@ repos:
         # (!include, !lambda, !secret) that PyYAML can't construct.
 
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.1
+    rev: v1.38.0
     hooks:
       - id: yamllint
         args: [-c, .yamllint]
@@ -48,12 +54,31 @@ repos:
                 echo "Skipping $base (real file in $parent)"; continue
               fi
               ln -sfn "$repo/$f" "$link"
-              ( cd "$parent" && esphome config "$base" >/dev/null )
-              status=$?
+              status=0
+              ( cd "$parent" && esphome config "$base" >/dev/null ) || status=$?
               rm -f "$link"
-              [ $status -ne 0 ] && exit $status
+              if [ "$status" -ne 0 ]; then exit "$status"; fi
             done
           ' --
-        language: system
+        language: python
+        additional_dependencies: ["esphome==2026.10.2"]
         files: ^example_code/.*\.yaml$
         pass_filenames: true
+
+      - id: unit-tests
+        name: engine unit test
+        entry: bash testing/unit_tests.sh
+        language: system
+        files: ^ui/clawdmeter/.*\.(h|cpp)$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: validate-configs
+        name: esphome config over all example configs
+        entry: bash testing/validate_examples.sh
+        language: python
+        additional_dependencies: ["esphome==2026.10.2"]
+        files: \.ya?ml$
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-push]

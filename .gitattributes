@@ -1,3 +1,6 @@
 # Shell scripts run under bash (WSL, Linux, CI). A CRLF checkout on Windows
 # (core.autocrlf=true) makes bash abort on the first line, so force LF.
 *.sh text eol=lf
+# YAML in LF as well, so yamllint sees the same file on Windows as in CI.
+*.yaml text eol=lf
+*.yml text eol=lf

@@ -48,8 +48,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - run: g++ -std=c++17 -Wall -Wextra -Werror ui/clawdmeter/tests/test_usage_rate.cpp -o test_usage_rate
-      - run: ./test_usage_rate
+      - run: bash testing/unit_tests.sh
 
   validate:
     name: Validate configs
