@@ -161,8 +161,8 @@ lvgl:
         - obj: { x: 80, y: 448, width: 370, height: 1, bg_color: chart_grid, bg_opa: COVER, border_width: 0, pad_all: 0 }
         # Y-axis labels (right-aligned in the 0..72 gutter, centered on each line)
         - label: { text: "100", x: 44, y: 286, text_font: nunito_14, text_color: gray }
-        - label: { text: "50",  x: 54, y: 364, text_font: nunito_14, text_color: gray }
-        - label: { text: "0",   x: 62, y: 442, text_font: nunito_14, text_color: gray }
+        - label: { text: "50", x: 54, y: 364, text_font: nunito_14, text_color: gray }
+        - label: { text: "0", x: 62, y: 442, text_font: nunito_14, text_color: gray }
 
         # data series — points rebuilt at runtime by clawd_charts_render.
         # Single degenerate initial point => nothing drawn until data arrives.
@@ -229,7 +229,7 @@ lvgl:
         - obj: { x: 80, y: 678, width: 370, height: 1, bg_color: chart_grid, bg_opa: COVER, border_width: 0, pad_all: 0 }
         - label: { text: "20", x: 54, y: 516, text_font: nunito_14, text_color: gray }
         - label: { text: "10", x: 54, y: 594, text_font: nunito_14, text_color: gray }
-        - label: { text: "0",  x: 62, y: 672, text_font: nunito_14, text_color: gray }
+        - label: { text: "0", x: 62, y: 672, text_font: nunito_14, text_color: gray }
 
         - line:
             id: clawd_ser_limit

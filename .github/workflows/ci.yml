@@ -1,0 +1,72 @@
+name: CI
+
+# Fast checks for every pull request: yamllint on the fork's own YAML, the
+# engine unit test, and `esphome config` over the example configs. Nothing is
+# compiled here, so the whole run stays within a few minutes.
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "**.png"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "**.png"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ESPHOME_VERSION: "2026.10.2"
+  YAMLLINT_VERSION: "1.38.0"
+
+jobs:
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: pip install "yamllint==${YAMLLINT_VERSION}"
+      # Only the fork's own paths. Many upstream files fail the shared
+      # .yamllint (trailing spaces, extra spaces after commas) and are left
+      # as they are, so a merge from upstream stays conflict-free.
+      - run: yamllint ui/clawdmeter example_code/clawdmeter .github
+
+  unit:
+    name: Unit test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash testing/unit_tests.sh
+
+  validate:
+    name: Validate configs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # The configs include the packages as esphome-modular-lvgl-buttons/...,
+      # so the checkout goes into a folder of that name.
+      - uses: actions/checkout@v7
+        with:
+          path: esphome-modular-lvgl-buttons
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: esphome-modular-lvgl-buttons/.github/workflows/ci.yml
+      - run: pip install "esphome==${ESPHOME_VERSION}"
+      # The SDL preview configs call sdl2-config during validation.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libsdl2-dev
+      # Writes a secrets.yaml with made-up values and removes it afterwards.
+      - run: JOBS=4 bash esphome-modular-lvgl-buttons/testing/validate_examples.sh
