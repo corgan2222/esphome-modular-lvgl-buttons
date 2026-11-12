@@ -67,5 +67,7 @@ jobs:
           cache: pip
           cache-dependency-path: esphome-modular-lvgl-buttons/.github/workflows/ci.yml
       - run: pip install "esphome==${ESPHOME_VERSION}"
+      # The SDL preview configs call sdl2-config during validation.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libsdl2-dev
       # Writes a secrets.yaml with made-up values and removes it afterwards.
       - run: JOBS=4 bash esphome-modular-lvgl-buttons/testing/validate_examples.sh

@@ -13,6 +13,7 @@
 #
 # Without a secrets.yaml next to the checkout, the script writes one with
 # made-up values and removes it at the end. Never flash an image built with it.
+# The SDL preview configs need SDL2 (sdl2-config) even for validation.
 set -euo pipefail
 
 REPO_DIR="esphome-modular-lvgl-buttons"
