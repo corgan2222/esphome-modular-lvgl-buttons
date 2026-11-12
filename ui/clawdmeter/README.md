@@ -3,7 +3,7 @@
 An animated pixel-art creature plus a stats panel for ESPHome/LVGL displays that
 visualises your **Claude usage**, fed from **Home Assistant**. A feature of the
 fork [**corgan2222/esphome-modular-lvgl-buttons**](https://github.com/corgan2222/esphome-modular-lvgl-buttons).
-Requires **ESPHome 2026.6.0+**.
+Requires **ESPHome 2026.7.0+**.
 
 The creature animates on-device while a stats panel renders session/weekly usage,
 extra credits, reset clocks, burn rate, time-to-100 %, an ETA clock, a Runway
@@ -176,7 +176,7 @@ For every plan, long durations read as `45 min`, `20h 39m` or `8d 08h`.
    [`example_code/clawdmeter/`](../../example_code/clawdmeter/).
 3. In its `substitutions:` block set the single binding var **`ha_account`** to
    the integration's device slug, e.g. `claude_jane_pro`.
-4. Flash with ESPHome **2026.6.0+** (`esphome run <config>.yaml`).
+4. Flash with ESPHome **2026.7.0+** (`esphome run <config>.yaml`).
 
 ### Finding your `ha_account` slug
 
