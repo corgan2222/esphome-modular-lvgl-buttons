@@ -27,6 +27,17 @@
 #   weekly_reset_entity  optional  HA sensor, ISO-8601 UTC timestamp of next reset
 #                                  (default sensor.SET_ME_weekly_reset_time)
 #   status_entity        optional  HA sensor, free text   (default sensor.SET_ME_status)
+#   model_entity         optional  HA sensor, the busiest model's weekly usage %
+#                                  (ha-clawdmeter weekly_model_usage; default:
+#                                  session_pct_entity with _session_usage ->
+#                                  _weekly_model_usage)
+#   pace_entity          optional  HA sensor, weekly pace in % (ha-clawdmeter
+#                                  weekly_pace; default derived the same way)
+#
+# Weekly mode: plans without a five-hour window (e.g. Ultra) get the attribute
+# `window: weekly` on the session entity from ha-clawdmeter. Then the first line
+# reads as the week, the second shows the busiest model's own weekly cap, and the
+# creature's mood follows the weekly pace (clawd_weekly_mode() in the engine).
 #   clawd_creature_h     optional  height of the creature region (default "58%";
 #                                  58% + 38% stats + 4% top margin = 100%)
 #   clawd_stats_h        optional  height of the stats panel     (default "38%")
@@ -77,6 +88,8 @@ substitutions:
   weekly_pct_entity:    ${weekly_pct_entity    | default("sensor.SET_ME_week_usage")}
   weekly_reset_entity:  ${weekly_reset_entity  | default("sensor.SET_ME_weekly_reset_time")}
   status_entity:        ${status_entity        | default("sensor.SET_ME_status")}
+  model_entity:         ${model_entity         | default(session_pct_entity | replace("_session_usage", "_weekly_model_usage"))}
+  pace_entity:          ${pace_entity          | default(session_pct_entity | replace("_session_usage", "_weekly_pace"))}
   clawd_creature_h:     ${clawd_creature_h     | default("58%")}
   clawd_stats_h:        ${clawd_stats_h        | default("38%")}
   clawd_stats_w:        ${clawd_stats_w        | default("88%")}
@@ -124,6 +137,30 @@ sensor:
     on_value:
       then:
         - script.execute: ${uid}_refresh_ui
+  # Weekly mode inputs: pace (creature mood) and the busiest model's own cap.
+  - platform: homeassistant
+    id: ${uid}_week_pace
+    entity_id: ${pace_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_week_pace(x);'
+  - platform: homeassistant
+    id: ${uid}_model_pct
+    entity_id: ${model_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_model_usage(x);'
+        - script.execute: ${uid}_refresh_ui
+  - platform: homeassistant
+    id: ${uid}_model_allow
+    entity_id: ${model_entity}
+    attribute: allowance_percent_of_weekly
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_model_allowance(x);'
   # Reset times arrive as ISO-8601 UTC strings; convert to minutes-from-now
   # on-device. The template sensors recompute every 60s so the countdown stays
   # live, and immediately whenever HA pushes a fresh timestamp.
@@ -176,6 +213,26 @@ text_sensor:
     on_value:
       then:
         - script.execute: ${uid}_refresh_ui
+  # "session" (five-hour window) or "weekly" (plan without one); missing
+  # attribute = older integration = session behaviour.
+  - platform: homeassistant
+    id: ${uid}_window
+    entity_id: ${session_pct_entity}
+    attribute: window
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_weekly_mode(x == "weekly");'
+        - script.execute: ${uid}_refresh_ui
+  - platform: homeassistant
+    id: ${uid}_model_name
+    entity_id: ${model_entity}
+    attribute: model
+    internal: true
+    on_value:
+      then:
+        - lambda: 'clawd_set_model_label(x.c_str());'
+        - script.execute: ${uid}_refresh_ui
 
 # Push current values into the LVGL chrome (bars + text). Pure formatting.
 script:
@@ -192,11 +249,15 @@ script:
                                    : lv_color_hex(${clawd_bar_low});
           lv_obj_set_style_bg_color(id(${uid}_session_bar), c, LV_PART_INDICATOR);
       # --- weekly bar: value + severity colour ------------------------------
+      # (weekly mode: the busiest model's own cap, once known)
       - lvgl.bar.update:
           id: ${uid}_weekly_bar
-          value: !lambda 'return id(${uid}_weekly_pct).has_state() ? id(${uid}_weekly_pct).state : 0;'
+          value: !lambda |-
+            if (clawd_weekly_mode() && !std::isnan(clawd_model_usage())) return clawd_model_usage();
+            return id(${uid}_weekly_pct).has_state() ? id(${uid}_weekly_pct).state : 0;
       - lambda: |-
-          float p = id(${uid}_weekly_pct).has_state() ? id(${uid}_weekly_pct).state : 0.0f;
+          float p = (clawd_weekly_mode() && !std::isnan(clawd_model_usage())) ? clawd_model_usage()
+                  : (id(${uid}_weekly_pct).has_state() ? id(${uid}_weekly_pct).state : 0.0f);
           lv_color_t c = (p >= 80) ? lv_color_hex(${clawd_bar_high})
                        : (p >= 50) ? lv_color_hex(${clawd_bar_mid})
                                    : lv_color_hex(${clawd_bar_low});
@@ -207,27 +268,42 @@ script:
           text: !lambda |-
             int p = (id(${uid}_session_pct).has_state() && !std::isnan(id(${uid}_session_pct).state)) ? (int) id(${uid}_session_pct).state : 0;
             float r = id(${uid}_session_reset).state;
-            char buf[48];
+            const bool weekly = clawd_weekly_mode();
+            char buf[56];
             if (std::isnan(r)) {
-              snprintf(buf, sizeof(buf), "${t_rmt_session | default("Current  %d%%")}", p);
+              if (weekly)
+                snprintf(buf, sizeof(buf), "${t_rmt_week | default("Week  %d%%")}", p);
+              else
+                snprintf(buf, sizeof(buf), "${t_rmt_session | default("Current  %d%%")}", p);
             } else {
-              int m = (int) r;
-              snprintf(buf, sizeof(buf), "${t_rmt_session_reset | default("Current  %d%%   ·   resets in %dh%02dm")}",
-                       p, m / 60, m % 60);
+              // "45 min" / "20h 39m" / "8d 08h" (clawd_fmt_duration_line)
+              char dur[24];
+              clawd_fmt_duration_line((int) r, "${t_modern_min | default("min")}", dur, sizeof(dur));
+              if (weekly)
+                snprintf(buf, sizeof(buf), "${t_rmt_week_reset | default("Week  %d%%   ·   resets in %s")}", p, dur);
+              else
+                snprintf(buf, sizeof(buf), "${t_rmt_session_reset_dur | default("Current  %d%%   ·   resets in %s")}", p, dur);
             }
             return std::string(buf);
       - lvgl.label.update:
           id: ${uid}_weekly_lbl
           text: !lambda |-
+            char buf[56];
+            if (clawd_weekly_mode() && !std::isnan(clawd_model_usage())) {
+              // Weekly mode: the first line is already the week; show the model's cap.
+              const char *name = clawd_model_label()[0] ? clawd_model_label() : "${t_modern_model | default("Model")}";
+              int allow = std::isnan(clawd_model_allowance()) ? 0 : (int) clawd_model_allowance();
+              snprintf(buf, sizeof(buf), "${t_rmt_model | default("%s  %d%%   ·   max %d%%")}", name, (int) clawd_model_usage(), allow);
+              return std::string(buf);
+            }
             int p = (id(${uid}_weekly_pct).has_state() && !std::isnan(id(${uid}_weekly_pct).state)) ? (int) id(${uid}_weekly_pct).state : 0;
             float r = id(${uid}_weekly_reset).state;
-            char buf[48];
             if (std::isnan(r)) {
               snprintf(buf, sizeof(buf), "${t_rmt_weekly | default("Weekly  %d%%")}", p);
             } else {
-              int m = (int) r;
-              snprintf(buf, sizeof(buf), "${t_rmt_weekly_reset | default("Weekly  %d%%   ·   resets in %dd%02dh")}",
-                       p, m / 1440, (m % 1440) / 60);
+              char dur[24];
+              clawd_fmt_duration_line((int) r, "${t_modern_min | default("min")}", dur, sizeof(dur));
+              snprintf(buf, sizeof(buf), "${t_rmt_weekly_reset_dur | default("Weekly  %d%%   ·   resets in %s")}", p, dur);
             }
             return std::string(buf);
       - lvgl.label.update:

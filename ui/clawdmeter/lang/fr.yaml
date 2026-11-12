@@ -50,6 +50,16 @@ substitutions:
   t_fmt_ttl:           'Avant 100%% - %s'
   t_fmt_burn:          'Conso  5m %s  \xC2\xB7  30m %s %%/h'
   t_fmt_runway:        'Atteint la limite ? %s'
+  # Durations as "45 min" / "20h 39m" / "8d 08h"; weekly mode (plan without a five-hour window)
+  t_fmt_session_reset_dur: 'Session %d%% - Reset dans %s - %s'
+  t_fmt_week_reset:        'Semaine %d%% - Reset dans %s - %s'
+  t_fmt_week:              'Semaine %d%% - %s'
+  t_fmt_model:             '%s %d%% - max %d%%'
+  t_fmt_ttl_clk_dur:       'Avant 100%% - %s - %s'
+  t_fmt_ttl_week_clk:      'Avant limite hebdo - %s - %s'
+  t_fmt_ttl_week:          'Avant limite hebdo - %s'
+  t_fmt_pace:              'Rythme hebdo %+d%% - %s'
+  t_fmt_pace_unknown:      'Rythme hebdo --'
 
   # ---- stats panel: static placeholder labels (shown until first repaint) ----
   t_ph_session: 'Session —'
@@ -68,6 +78,10 @@ substitutions:
   t_runway_short:   'Oui \xC2\xB7 %d min plus tôt'
   t_runway_clear:   'Non'
   t_runway_unknown: 'inconnu'
+  # Same verdict with a ready-made duration ("45 min", "20h 39m", "8d 08h") —
+  # used by render_from_integration.yaml.
+  t_runway_spare_dur: 'Non \xC2\xB7 %s de marge'
+  t_runway_short_dur: 'Oui \xC2\xB7 %s plus tôt'
 
   # ---- remote.yaml: single-page (non-grid) stats labels ----
   t_rmt_session:       'Actuel  %d%%'
@@ -76,6 +90,12 @@ substitutions:
   t_rmt_weekly_reset:  'Semaine  %d%%   \xC2\xB7   reset dans %dj%02dh'
   t_rmt_ph_session:    'Actuel  —'
   t_rmt_ph_weekly:     'Semaine  —'
+  # Durations as "45 min" / "20h 39m" / "8d 08h"; weekly mode
+  t_rmt_session_reset_dur: 'Actuel  %d%%   \xC2\xB7   reset dans %s'
+  t_rmt_weekly_reset_dur:  'Semaine  %d%%   \xC2\xB7   reset dans %s'
+  t_rmt_week:              'Semaine  %d%%'
+  t_rmt_week_reset:        'Semaine  %d%%   \xC2\xB7   reset dans %s'
+  t_rmt_model:             '%s  %d%%   \xC2\xB7   max %d%%'
 
   # ---- time_to_100_tile.yaml: optional display tile label ----
   t_tile_ttl: 'Avant 100%'
@@ -99,6 +119,15 @@ substitutions:
   t_modern_reset_fmt:    'Reset %s'
   t_modern_eta_fmt:      'ETA %s'
   t_modern_credits_fmt:  '%.1f cr'
+  # Weekly mode (plan without a five-hour window, e.g. Ultra)
+  t_modern_week:         'Semaine'
+  t_modern_till_week:    'Avant limite hebdo'
+  t_modern_pace:         'Rythme hebdo'
+  t_modern_pace_under:   'sous le plan'
+  t_modern_pace_over:    'au-dessus du plan'
+  t_modern_model:        'Modèle'
+  t_modern_model_cap:    'max %d%%'
+  t_weekdays:            'dim,lun,mar,mer,jeu,ven,sam'
 
   # ---- charts page (charts_page.yaml) ----
   # Plain LVGL label strings (no printf placeholders). Leading/trailing spaces are
