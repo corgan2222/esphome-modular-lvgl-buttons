@@ -7,11 +7,6 @@
 # Run with the host platform, e.g.:
 #   esphome run example_code/clawdmeter/SDL-lvgl-clawdmeter_480px.yaml
 
-external_components:
-  - source: github://pr#12312
-    components: [font, image, lvgl]
-    refresh: 1h
-
 substitutions:
   icon_font: mdi_icons_40
   text_font: nunito_20

@@ -1,0 +1,384 @@
+---
+# Cover detail page — shared rolling-shutter/gate/garage UI.
+# Included automatically by local.yaml and remote.yaml via packages:
+# Never include this file directly.
+#
+# Abstract script contract (implemented by local.yaml / remote.yaml):
+#   ${uid}_cover_open           — drive the cover up/open
+#   ${uid}_cover_close          — drive the cover down/close
+#   ${uid}_cover_stop           — stop movement
+#   ${uid}_cover_my             — go to the configured "my position" preset
+#                                 (always defined; a no-op if not configured)
+#   ${uid}_cover_set_position   — applies ${uid}_current_position [0-100]
+#                                 (only meaningful when ${uid}_is_statefull)
+#
+# Vars (passed in by local.yaml / remote.yaml, not by the device config):
+#   uid, text, page_id
+#   has_my    "true"/"false" — whether a my-position target was configured
+#
+# Globals (written by local/remote before calling ${uid}_sync_state /
+# ${uid}_update_visibility):
+#   ${uid}_current_position   float   0 (closed) – 100 (open)
+#   ${uid}_operation          int     0=idle 1=opening 2=closing
+#   ${uid}_is_statefull       bool    true if the cover reports position
+#   ${uid}_has_my             bool    true if a my-position target is configured
+
+globals:
+- id: ${uid}_current_position
+  type: float
+  initial_value: '0.0'
+- id: ${uid}_operation
+  type: int
+  initial_value: '0'
+- id: ${uid}_is_statefull
+  type: bool
+  initial_value: 'false'
+- id: ${uid}_has_my
+  type: bool
+  initial_value: '${has_my}'
+
+lvgl:
+  pages:
+  - id: ${uid}_cover_page
+    styles: page_style
+    scrollable: false
+    scrollbar_mode: "OFF"
+    widgets:
+
+    # ── TITLE ────────────────────────────────────────────────────────────
+    - label:
+        id: ${uid}_title_label
+        align: TOP_MID
+        y: 20
+        text_font: nunito_24
+        text: ${text}
+        text_color: white
+
+    # ── POSITION READOUT — above the slider ─────────────────────────────
+    - label:
+        id: ${uid}_position_label
+        hidden: true
+        align: TOP_MID
+        y: 65
+        text_font: nunito_36
+        text: "--"
+        text_color: white
+
+    # ── POSITION SLIDER (vertical) — statefull covers only ──────────────
+    # Knob position tracks openness normally (drag to top = 100%/open,
+    # drag to bottom = 0%/closed), but the *filled* portion represents
+    # coverage — anchored at the top, growing downward as the cover
+    # closes, fully white when fully extended (0%/closed). LVGL ties fill
+    # anchor and value-direction together, so this is done by feeding the
+    # widget an inverted value (100 - position) into a reversed range
+    # (min:100, max:0) and converting back on read — see ${uid}_sync_state
+    # for the matching lvgl.slider.update push.
+    - slider:
+        id: ${uid}_position_slider
+        hidden: true
+        align: CENTER
+        y: 20
+        width: 40
+        height: 60%
+        min_value: 100
+        max_value: 0
+        radius: 10
+        knob:
+          # Same padding as the light brightness slider (proven to work) —
+          # -14 was too aggressive and blew the knob up to cover the whole
+          # track instead of shrinking it.
+          pad_top: -5
+          pad_bottom: -5
+          bg_color: white
+        indicator:
+          radius: 0
+          bg_color: white
+        on_release:
+          then:
+          - lambda: 'id(${uid}_current_position) = 100.0f - (float) x;'
+          - script.execute: ${uid}_cover_set_position
+
+    # ── TOP RIGHT — BACK ─────────────────────────────────────────────────
+    - button:
+        id: ${uid}_back_btn
+        align: TOP_RIGHT
+        x: -10
+        y: 10
+        width: 60
+        height: 60
+        bg_opa: transp
+        border_width: 0
+        shadow_width: 0
+        radius: 30
+        widgets:
+        - label:
+            align: CENTER
+            text_font: $icon_font
+            text_color: steel_blue
+            text: $mdi_chevron_left
+        on_click:
+        - lvgl.page.show:
+            id: ${page_id | default("main_page")}
+            animation: OUT_RIGHT
+            time: 300ms
+
+    # ── MY POSITION (statefull) — right of the slider, vertically centered
+    # on it (mirrors the stateless layout's stop+my relationship) ───────
+    - button:
+        id: ${uid}_btn_my_statefull
+        hidden: true
+        align: CENTER
+        x: 90
+        y: 20
+        width: 70
+        height: 70
+        radius: 35
+        bg_color: gray900
+        shadow_width: 0
+        border_width: 0
+        widgets:
+        - label:
+            align: CENTER
+            text_font: $icon_font
+            text_color: yellow
+            text: $mdi_star
+        on_click:
+          then:
+          - script.execute: ${uid}_cover_my
+
+    # ── CONTROL COLUMN — up / stop+my / down, stacked vertically ───────
+    # Stateless only — statefull covers use the slider above instead.
+    # Sized as a percentage of the page rather than a fixed 260x260 box:
+    # a fixed box this size is a small, stranded island on a large
+    # landscape panel, and risks clipping on the shorter end of this
+    # library's supported screen range. The three 70x70 buttons inside
+    # keep their fixed size (a physical touch target, not something that
+    # should balloon on a bigger screen) — only the space they're
+    # distributed across grows or shrinks with the screen.
+    - obj:
+        id: ${uid}_controls_col
+        hidden: true
+        align: CENTER
+        y: 30
+        width: 40%
+        height: 60%
+        bg_opa: transp
+        border_width: 0
+        layout:
+          type: FLEX
+          flex_flow: COLUMN
+          flex_align_main: SPACE_EVENLY
+          flex_align_cross: CENTER
+        widgets:
+        - button:
+            id: ${uid}_btn_up
+            width: 70
+            height: 70
+            radius: 35
+            bg_color: gray900
+            shadow_width: 0
+            border_width: 0
+            widgets:
+            - label:
+                id: ${uid}_btn_up_icon
+                align: CENTER
+                text_font: $icon_font
+                text_color: gray
+                text: $mdi_arrow_up_bold
+            on_click:
+              then:
+              - script.execute: ${uid}_cover_open
+
+        # Stop is dead-center — same X as up/down. My sits further right,
+        # so it doesn't shift stop's position when it's hidden.
+        - obj:
+            id: ${uid}_controls_mid_row
+            width: 100%
+            height: 70
+            bg_opa: transp
+            border_width: 0
+            widgets:
+            - button:
+                id: ${uid}_btn_stop
+                align: CENTER
+                width: 70
+                height: 70
+                radius: 35
+                bg_color: gray900
+                shadow_width: 0
+                border_width: 0
+                widgets:
+                - label:
+                    align: CENTER
+                    text_font: $icon_font
+                    text_color: gray
+                    text: $mdi_pause
+                on_click:
+                  then:
+                  - script.execute: ${uid}_cover_stop
+            - button:
+                id: ${uid}_btn_my
+                hidden: true
+                align: CENTER
+                x: 90
+                width: 70
+                height: 70
+                radius: 35
+                bg_color: gray900
+                shadow_width: 0
+                border_width: 0
+                widgets:
+                - label:
+                    align: CENTER
+                    text_font: $icon_font
+                    text_color: yellow
+                    text: $mdi_star
+                on_click:
+                  then:
+                  - script.execute: ${uid}_cover_my
+
+        - button:
+            id: ${uid}_btn_down
+            width: 70
+            height: 70
+            radius: 35
+            bg_color: gray900
+            shadow_width: 0
+            border_width: 0
+            widgets:
+            - label:
+                id: ${uid}_btn_down_icon
+                align: CENTER
+                text_font: $icon_font
+                text_color: gray
+                text: $mdi_arrow_down_bold
+            on_click:
+              then:
+              - script.execute: ${uid}_cover_close
+
+# ── Paint my-button visibility as soon as possible (has_my is static config) ──
+esphome:
+  on_boot:
+  - priority: -200
+    then:
+    - script.execute: ${uid}_update_visibility
+
+script:
+# ── Show/hide controls based on detected + configured capabilities ────────────
+- id: ${uid}_update_visibility
+  then:
+  - if:
+      condition:
+        lambda: 'return id(${uid}_is_statefull);'
+      then:
+      - lvgl.widget.show: ${uid}_position_slider
+      - lvgl.widget.show: ${uid}_position_label
+      - lvgl.widget.hide: ${uid}_controls_col
+      else:
+      - lvgl.widget.hide: ${uid}_position_slider
+      - lvgl.widget.hide: ${uid}_position_label
+      - lvgl.widget.show: ${uid}_controls_col
+  - if:
+      condition:
+        lambda: 'return id(${uid}_has_my) && id(${uid}_is_statefull);'
+      then:
+      - lvgl.widget.show: ${uid}_btn_my_statefull
+      else:
+      - lvgl.widget.hide: ${uid}_btn_my_statefull
+  - if:
+      condition:
+        lambda: 'return id(${uid}_has_my) && !id(${uid}_is_statefull);'
+      then:
+      - lvgl.widget.show: ${uid}_btn_my
+      else:
+      - lvgl.widget.hide: ${uid}_btn_my
+
+# ── Sync all globals → LVGL ───────────────────────────────────────────────────
+- id: ${uid}_sync_state
+  then:
+  - if:
+      condition:
+        lambda: 'return id(${uid}_is_statefull);'
+      then:
+      - lvgl.label.update:
+          id: ${uid}_position_label
+          text: !lambda |-
+            char buf[8];
+            snprintf(buf, sizeof(buf), "%d%%", (int) id(${uid}_current_position));
+            return std::string(buf);
+      - lvgl.slider.update:
+          id: ${uid}_position_slider
+          # Inverted — see the widget's min/max comment above.
+          value: !lambda return (int) (100.0f - id(${uid}_current_position));
+      - lvgl.label.update:
+          id: state_${uid}
+          text: !lambda |-
+            char buf[8];
+            snprintf(buf, sizeof(buf), "%d%%", (int) id(${uid}_current_position));
+            return std::string(buf);
+      # Tile coloring — "on" (open/moving) vs "off" (closed). Only a
+      # statefull cover actually knows this; stateless leaves the tile
+      # permanently neutral (see the `else` branch below).
+      - if:
+          condition:
+            lambda: 'return id(${uid}_current_position) > 0 || id(${uid}_operation) != 0;'
+          then:
+          - lvgl.widget.update:
+              id: button_${uid}
+              bg_color: $button_on_color
+          - lvgl.widget.update:
+              id: icon_${uid}
+              text_color: $icon_on_color
+          - lvgl.widget.update:
+              id: label_${uid}
+              text_color: $label_on_color
+          else:
+          - lvgl.widget.update:
+              id: button_${uid}
+              bg_color: $button_off_color
+          - lvgl.widget.update:
+              id: icon_${uid}
+              text_color: $icon_off_color
+          - lvgl.widget.update:
+              id: label_${uid}
+              text_color: $label_off_color
+      else:
+      # Stateless: no real position/state is known — leave the tile blank
+      # and permanently neutral rather than guessing OPEN/CLOSED from a
+      # possibly-assumed HA state.
+      - lvgl.label.update:
+          id: state_${uid}
+          text: ""
+      - lvgl.widget.update:
+          id: button_${uid}
+          bg_color: $button_off_color
+      - lvgl.widget.update:
+          id: icon_${uid}
+          text_color: $icon_off_color
+      - lvgl.widget.update:
+          id: label_${uid}
+          text_color: $label_off_color
+
+  # Up/down icon highlight while moving.
+  - if:
+      condition:
+        lambda: 'return id(${uid}_operation) == 1;'
+      then:
+      - lvgl.widget.update:
+          id: ${uid}_btn_up_icon
+          text_color: $icon_on_color
+      else:
+      - lvgl.widget.update:
+          id: ${uid}_btn_up_icon
+          text_color: gray
+  - if:
+      condition:
+        lambda: 'return id(${uid}_operation) == 2;'
+      then:
+      - lvgl.widget.update:
+          id: ${uid}_btn_down_icon
+          text_color: $icon_on_color
+      else:
+      - lvgl.widget.update:
+          id: ${uid}_btn_down_icon
+          text_color: gray

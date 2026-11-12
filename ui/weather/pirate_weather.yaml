@@ -1,0 +1,494 @@
+---
+# ============================================================================
+# Pirate Weather (Dark Sky-compatible) — standalone weather, no Home Assistant
+# ============================================================================
+# One HTTPS call to Pirate Weather populates the current-conditions widgets and
+# the 4-day forecast. Icons use the Dark Sky icon set, mapped to the bundled
+# weather images.
+#
+# Requires: an `http_request:` component and a `time:` with `id: system_time`.
+#
+# vars:
+#   pw_key:        Pirate Weather API key   (use: !secret pirate_weather_key)
+#   pw_lat, pw_lon: location                (use: !secret latitude / longitude)
+#   today_size:    current-condition icon size   (default 220)
+#   forecast_size: forecast icon size            (default 100)
+#   pw_units:      us | si | uk | ca             (default us)
+#   pw_refresh:    refresh interval              (default 15min)
+#   pw_retry_delay: wait before retrying a failed fetch (default 60s)
+#
+# Usage:
+#   pirate_weather: !include
+#     file: esphome-modular-lvgl-buttons/ui/weather/pirate_weather.yaml
+#     vars:
+#       pw_key: !secret pirate_weather_key
+#       pw_lat: !secret latitude
+#       pw_lon: !secret longitude
+#       today_size: 220
+#       forecast_size: 100
+# ============================================================================
+
+defaults:
+  today_size: '220'
+  forecast_size: '100'
+  pw_units: us
+  pw_refresh: 15min
+  pw_retry_delay: 60s
+
+globals:
+  - id: pw_current_icon
+    type: std::string
+    restore_value: false
+    initial_value: '"clear-day"'
+  - id: pw_fc_icon_0
+    type: std::string
+    restore_value: false
+    initial_value: '"clear-day"'
+  - id: pw_fc_icon_1
+    type: std::string
+    restore_value: false
+    initial_value: '"clear-day"'
+  - id: pw_fc_icon_2
+    type: std::string
+    restore_value: false
+    initial_value: '"clear-day"'
+  - id: pw_fc_icon_3
+    type: std::string
+    restore_value: false
+    initial_value: '"clear-day"'
+  # Air Quality Index (US EPA). -1 = unknown / not yet fetched.
+  - id: pw_aqi
+    type: int
+    restore_value: false
+    initial_value: '-1'
+
+# Dark Sky icon name -> bundled weather image, at each size
+mapping:
+  - id: pw_icon_today
+    from: string
+    to: image
+    entries:
+      clear-day: sunny_${today_size}
+      clear-night: clear_night_${today_size}
+      rain: rainy_${today_size}
+      snow: snowy_${today_size}
+      sleet: snowy_rainy_${today_size}
+      wind: windy_${today_size}
+      fog: fog_${today_size}
+      cloudy: cloudy_${today_size}
+      partly-cloudy-day: partlycloudy_${today_size}
+      partly-cloudy-night: partlycloudy_${today_size}
+      thunderstorm: lightning_${today_size}
+      hail: hail_${today_size}
+      none: unknown_${today_size}
+  - id: pw_icon_fc
+    from: string
+    to: image
+    entries:
+      clear-day: sunny_${forecast_size}
+      clear-night: clear_night_${forecast_size}
+      rain: rainy_${forecast_size}
+      snow: snowy_${forecast_size}
+      sleet: snowy_rainy_${forecast_size}
+      wind: windy_${forecast_size}
+      fog: fog_${forecast_size}
+      cloudy: cloudy_${forecast_size}
+      partly-cloudy-day: partlycloudy_${forecast_size}
+      partly-cloudy-night: partlycloudy_${forecast_size}
+      thunderstorm: lightning_${forecast_size}
+      hail: hail_${forecast_size}
+      none: unknown_${forecast_size}
+
+# ----------------------------------------------------------------------------
+# Fetch + parse
+# ----------------------------------------------------------------------------
+script:
+  - id: fetch_pirate_weather
+    then:
+      - logger.log:
+          level: INFO
+          format: "Fetching weather from Pirate Weather..."
+      - http_request.get:
+          capture_response: true
+          # Including the hourly block (for hourly.summary) makes the response much
+          # larger, so pw_max_response must be raised too (see pw_exclude below).
+          max_response_buffer_size: ${pw_max_response | default("16384")}
+          # version=2 adds air quality (currently.airQualityIndex) and other fields.
+          # pw_exclude default drops hourly (small response); un-exclude it (and raise
+          # pw_max_response, e.g. 65536) to populate weather_summary_today from
+          # hourly.summary.
+          url: "https://api.pirateweather.net/forecast/${pw_key}/${pw_lat},${pw_lon}?units=${pw_units}&version=2&exclude=${pw_exclude | default('minutely,hourly,alerts,flags')}"
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGE("pw", "Pirate Weather HTTP %d", response->status_code);
+                    return;
+                  }
+                  if (body.length() == 0) {
+                    ESP_LOGE("pw", "Empty Pirate Weather response");
+                    return;
+                  }
+                  json::parse_json(body, [](JsonObject root) -> bool {
+                    JsonObject cur = root["currently"];
+                    if (cur.isNull()) {
+                      ESP_LOGE("pw", "Response missing 'currently'");
+                      return false;
+                    }
+                    char buf[24];
+                    // Current conditions
+                    snprintf(buf, sizeof(buf), "%d\xC2\xB0", (int) lroundf(cur["temperature"].as<float>()));
+                    lv_label_set_text(id(weather_temperature_today), buf);
+                    snprintf(buf, sizeof(buf), "%d%%", (int) lroundf(cur["humidity"].as<float>() * 100.0f));
+                    lv_label_set_text(id(weather_humidity_today), buf);
+                    snprintf(buf, sizeof(buf), "%d hPa", (int) lroundf(cur["pressure"].as<float>()));
+                    lv_label_set_text(id(weather_pressure_today), buf);
+                    snprintf(buf, sizeof(buf), "%d mph", (int) lroundf(cur["windSpeed"].as<float>()));
+                    lv_label_set_text(id(weather_wind_speed_today), buf);
+                    snprintf(buf, sizeof(buf), "%d mi", (int) lroundf(cur["visibility"].as<float>()));
+                    lv_label_set_text(id(weather_visibility_today), buf);
+                    {
+                      static const char *dirs[] = {"N","NNE","NE","ENE","E","ESE","SE","SSE",
+                                                   "S","SSW","SW","WSW","W","WNW","NW","NNW"};
+                      int b = (int) lroundf(cur["windBearing"].as<float>());
+                      lv_label_set_text(id(weather_wind_dir_today), dirs[((b % 360 + 11) / 22) % 16]);
+                    }
+                    // Use the hourly forecast narrative ("Light rain starting in the
+                    // evening.") over the terse instantaneous currently.summary
+                    // ("Overcast"); fall back to the short one if hourly is absent.
+                    {
+                      const char *hs = root["hourly"]["summary"] | "";
+                      const char *cs = cur["summary"] | "";
+                      lv_label_set_text(id(weather_summary_today), hs[0] ? hs : cs);
+                    }
+                    id(pw_current_icon) = cur["icon"] | "clear-day";
+                    // Air quality (version=2). Missing on v1 -> stays -1.
+                    id(pw_aqi) = cur["airQualityIndex"] | -1;
+
+                    // 4-day forecast
+                    JsonArray days = root["daily"]["data"];
+                    auto setday = [&](int i, lv_obj_t *dl, lv_obj_t *hl, lv_obj_t *ll, std::string &ig) {
+                      JsonObject d = days[i];
+                      time_t t = (time_t)(d["time"] | 0L);
+                      struct tm tmv;
+                      localtime_r(&t, &tmv);
+                      char dn[8];
+                      strftime(dn, sizeof(dn), "%a", &tmv);
+                      lv_label_set_text(dl, dn);
+                      char b[12];
+                      snprintf(b, sizeof(b), "%d\xC2\xB0", (int) lroundf(d["temperatureHigh"].as<float>()));
+                      lv_label_set_text(hl, b);
+                      snprintf(b, sizeof(b), "%d\xC2\xB0", (int) lroundf(d["temperatureLow"].as<float>()));
+                      lv_label_set_text(ll, b);
+                      ig = d["icon"] | "clear-day";
+                    };
+                    setday(0, id(forecast_day_0), id(forecast_temperature_hi_0), id(forecast_temperature_lo_0), id(pw_fc_icon_0));
+                    setday(1, id(forecast_day_1), id(forecast_temperature_hi_1), id(forecast_temperature_lo_1), id(pw_fc_icon_1));
+                    setday(2, id(forecast_day_2), id(forecast_temperature_hi_2), id(forecast_temperature_lo_2), id(pw_fc_icon_2));
+                    setday(3, id(forecast_day_3), id(forecast_temperature_hi_3), id(forecast_temperature_lo_3), id(pw_fc_icon_3));
+                    return true;
+                  });
+              # Icons (via the string->image mapping)
+              - lvgl.image.update:
+                  id: weather_condition_icon
+                  src: !lambda 'return id(pw_icon_today)[id(pw_current_icon)];'
+              - lvgl.image.update:
+                  id: forecast_condition_icon_0
+                  src: !lambda 'return id(pw_icon_fc)[id(pw_fc_icon_0)];'
+              - lvgl.image.update:
+                  id: forecast_condition_icon_1
+                  src: !lambda 'return id(pw_icon_fc)[id(pw_fc_icon_1)];'
+              - lvgl.image.update:
+                  id: forecast_condition_icon_2
+                  src: !lambda 'return id(pw_icon_fc)[id(pw_fc_icon_2)];'
+              - lvgl.image.update:
+                  id: forecast_condition_icon_3
+                  src: !lambda 'return id(pw_icon_fc)[id(pw_fc_icon_3)];'
+              # Hook for optional add-ons (e.g. the AQI pill). Runs after every
+              # successful update; extended via `!extend pw_after_update`.
+              - script.execute: pw_after_update
+          on_error:
+            then:
+              - logger.log:
+                  level: WARN
+                  format: "Pirate Weather request failed; retrying in ${pw_retry_delay}"
+              - script.execute: pw_retry
+
+  # Re-arm after a failed fetch. Without this a single failure (a dropped link, a
+  # 5xx from the API) leaves stale/placeholder values on screen for a whole
+  # ${pw_refresh} period. mode: restart so overlapping retries collapse into one.
+  # The delay also outlasts the parent fetch script, so the SingleScript guard on
+  # fetch_pirate_weather does not swallow the retry.
+  - id: pw_retry
+    mode: restart
+    then:
+      - delay: ${pw_retry_delay}
+      - script.execute: fetch_pirate_weather
+
+  # Overridable post-update hook. No-op unless an add-on `!extend`s it.
+  - id: pw_after_update
+    then:
+      - lambda: |-
+          // no-op; add-ons extend this (see ui/weather/aqi_pill.yaml)
+
+# Fetch once on boot (after the network is up) and then on a fixed interval
+esphome:
+  on_boot:
+    - priority: -200
+      then:
+        # A valid clock is NOT a sufficient gate. Across a soft reboot (OTA, the
+        # restart button, safe-mode exit) the RTC retains the time, so
+        # now().is_valid() is already true ~1s into boot — long before the Wi-Fi
+        # link has associated and picked up DHCP. The fetch then fails instantly
+        # and the panel sits on "--" placeholders until the first ${pw_refresh}
+        # tick. Wait for the network too. network::is_connected() covers
+        # wifi / ethernet / modem / openthread, so this stays transport-agnostic
+        # (on the ESP32-P4 the radio is an esp32_hosted ESP32-C6 over SDIO, which
+        # is why the link takes ~10s to come up).
+        - wait_until:
+            condition:
+              lambda: 'return network::is_connected() && id(system_time).now().is_valid();'
+            timeout: 120s
+        - script.execute: fetch_pirate_weather
+
+interval:
+  - interval: ${pw_refresh}
+    # Without a startup_delay the FIRST tick does not wait a full ${pw_refresh}:
+    # ESPHome's scheduler offsets an interval's first execution by a random
+    # 0..min(interval/2, MAX_INTERVAL_DELAY=5000) ms (scheduler.cpp
+    # calculate_interval_offset_) to avoid a thundering herd. So it fired 0-5s
+    # into boot, before the network was up, and every boot logged
+    # "HTTP Request failed; Not connected to network". The on_boot block above
+    # already performs the initial fetch (gated on the network), so hold the
+    # poller off for a full period instead.
+    startup_delay: ${pw_refresh}
+    then:
+      - script.execute: fetch_pirate_weather
+
+# ----------------------------------------------------------------------------
+# Weather icons (Dark Sky set), rendered at both sizes
+# ----------------------------------------------------------------------------
+image:
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/nt_clear.svg
+    id: clear_night_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/cloudy.svg
+    id: cloudy_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/tstorms.svg
+    id: exceptional_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/fog.svg
+    id: fog_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/sleet.svg
+    id: hail_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/chancetstorms.svg
+    id: lightning_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/tstorms.svg
+    id: lightning_rainy_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/partlycloudy.svg
+    id: partlycloudy_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/rain.svg
+    id: pouring_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/chancerain.svg
+    id: rainy_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/snow.svg
+    id: snowy_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/chancesleet.svg
+    id: snowy_rainy_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/sunny.svg
+    id: sunny_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/windy.svg
+    id: windy_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/unknown.svg
+    id: unknown_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/circle-slash.svg
+    id: unavailable_${today_size}
+    resize: ${today_size}x${today_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/nt_clear.svg
+    id: clear_night_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/cloudy.svg
+    id: cloudy_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/tstorms.svg
+    id: exceptional_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/fog.svg
+    id: fog_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/sleet.svg
+    id: hail_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/chancetstorms.svg
+    id: lightning_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/tstorms.svg
+    id: lightning_rainy_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/partlycloudy.svg
+    id: partlycloudy_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/rain.svg
+    id: pouring_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/chancerain.svg
+    id: rainy_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/snow.svg
+    id: snowy_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/chancesleet.svg
+    id: snowy_rainy_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/sunny.svg
+    id: sunny_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/windy.svg
+    id: windy_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/unknown.svg
+    id: unknown_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}
+
+  - platform: file
+    type: RGB565
+    transparency: alpha_channel
+    file: esphome-modular-lvgl-buttons/ui/weather/assets/images/circle-slash.svg
+    id: unavailable_${forecast_size}
+    resize: ${forecast_size}x${forecast_size}

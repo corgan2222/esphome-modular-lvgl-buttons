@@ -101,7 +101,6 @@ for SDL equivalents** so the *layout* is identical to the real device:
 
 Plus, every harness adds:
 
-* `external_components: github://pr#12312` (font/image/lvgl) — required to build.
 * `api:` present — the `homeassistant` platform sensors need it to be valid.
   They stay *unavailable* on the host → everything renders at 0%, which is what
   we want for a neutral layout shot.

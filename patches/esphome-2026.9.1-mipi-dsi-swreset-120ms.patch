@@ -1,0 +1,26 @@
+--- a/esphome/components/mipi_dsi/mipi_dsi.cpp
++++ b/esphome/components/mipi_dsi/mipi_dsi.cpp
+@@ -115,6 +115,12 @@
+   }
+   // need to know when the display is ready for SLPOUT command - will be 120ms after reset
+   auto when = millis() + 120;
++  // Controllers such as the JD9365 require a full 120ms settling time after reset (hardware
++  // or software) before they will accept ANY command. Without it the panel ignores the init
++  // sequence, the DSI generic command FIFO never drains, and tx_param spins forever in
++  // mipi_dsi_host_ll_gen_is_cmd_fifo_full until the task watchdog aborts the boot.
++  // Matches the vendor driver (panel_jd9365_reset: vTaskDelay(pdMS_TO_TICKS(120))).
++  delay(120);
+   err = esp_lcd_panel_init(this->handle_);
+   if (err != ESP_OK) {
+     this->smark_failed(LOG_STR("esp_lcd_init failed"), err);
+--- a/esphome/components/mipi_dsi/models/waveshare.py
++++ b/esphome/components/mipi_dsi/models/waveshare.py
+@@ -12,7 +12,7 @@
+     hsync_back_porch=20,
+     hsync_pulse_width=20,
+     hsync_front_porch=40,
+-    vsync_back_porch=12,
++    vsync_back_porch=10,  # vendor JD9365_800_1280_PANEL_60HZ_DPI_CONFIG
+     vsync_pulse_width=4,
+     vsync_front_porch=30,
+     pclk_frequency="80MHz",
