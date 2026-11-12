@@ -7,18 +7,20 @@
 #
 #   ui/clawdmeter/engine.yaml      shared engine base — include EXACTLY ONCE
 #   ui/clawdmeter/creature.yaml    the animated creature canvas
-#   ui/clawdmeter/usage_rate.yaml        on-device burn rate (from raw usage %)
-#   ui/clawdmeter/time_to_100.yaml       on-device "time to 100%" (+ ETA clock)
+#   ui/clawdmeter/render_from_integration.yaml  burn rates, time to 100%, ETA
+#                                        and the runway verdict, precomputed by
+#                                        the ha-clawdmeter integration
+#   ui/clawdmeter/pace_frame.yaml        breathing border on the creature tile
 #   ui/clawdmeter/session_reset_clock.yaml on-device reset wall-clock + "reset in"
 #   ui/clawdmeter/stats_panel.yaml       on-display bars panel (session/weekly/
 #                                        extra/time-to-100 + burn line)
 #   ui/clawdmeter/anim_select.yaml       animation picker (HA select, backend-only)
 #
-# Burn rate (5m + 30m), time-to-100%, the reset clock times and the animation
-# picker are COMPUTED on the ESP from the raw HA inputs (session/week/extra
-# usage + the reset-time timestamps). The burn rates, time-to-100% and reset
-# clocks are also exposed as BACKEND device entities (ESPHome dashboard / HA);
-# stats_panel.yaml renders them ON the display, reading them by id.
+# The display is render-only. Burn rate (5m + 30m), time-to-100%, the ETA and
+# the runway verdict come precomputed from the ha-clawdmeter integration. Only
+# the reset clock times and the animation picker are computed on the ESP; the
+# reset clocks are also exposed as device entities (ESPHome dashboard / HA).
+# stats_panel.yaml renders the values ON the display, reading them by id.
 #
 # Tested target: Guition ESP32-P4 JC8012P4A1 (portrait panel, rotation 0). The
 # page is a 4-row x 4-column grid: the creature fills the top half (rows 0-1),

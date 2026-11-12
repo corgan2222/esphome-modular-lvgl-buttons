@@ -76,7 +76,7 @@ These boards ship with a ready Clawdmeter config for all three builds. The secon
 | Guition JC8012P4A1, 10.1", 800×1280 | `modern_1280` |
 | Guition 4848S040, 4.0", 480×480 | `modern_square` |
 | Guition JC4827W543, 4.3", 480×272 | `modern_480x272` |
-| Guition JC8048W535, 3.5", 320×480 | `modern_320x480` |
+| Guition JC3248W535, 3.5", 320×480 | `modern_320x480` |
 | Sunton 2432S028, 2.8", 320×240 | `modern_320x240` |
 | Waveshare P4 86 Panel, 86 mm, 720×720 | `modern_720` |
 | Waveshare P4 WiFi6 Touch LCD 7, 7.0", 720×1280 | `modern_720x1280` |

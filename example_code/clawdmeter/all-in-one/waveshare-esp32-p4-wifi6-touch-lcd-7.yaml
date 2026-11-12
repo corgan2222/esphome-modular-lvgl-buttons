@@ -1,5 +1,5 @@
 # esphome-modular-lvgl-buttons/example_code/clawdmeter/waveshare-esp32-p4-wifi6-touch-lcd-7-clawdmeter.yaml
-# Clawdmeter token-usage display — Waveshare ESP32-P4 WiFi6 Touch LCD 7" (1024x600, rotation 0).
+# Clawdmeter token-usage display — Waveshare ESP32-P4 WiFi6 Touch LCD 7" (720x1280 portrait, rotation 0).
 # The clawdmeter UI is resolution-agnostic: it measures the creature region at
 # boot and fits a square pixel-art canvas, so the same include works on every
 # supported display. See ui/clawdmeter/README.md.
@@ -23,7 +23,7 @@ substitutions:
 esphome:
   name: "clawdmeter-p4-lcd7"
   friendly_name: "Clawdmeter P4 LCD7"
-  comment: "Clawdmeter token-usage display on Waveshare ESP32-P4 WiFi6 Touch LCD 7 (1024x600)"
+  comment: "Clawdmeter token-usage display on Waveshare ESP32-P4 WiFi6 Touch LCD 7 (720x1280)"
 
 logger:
   level: debug

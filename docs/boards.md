@@ -82,7 +82,7 @@ The 10.1 panel has no enable GPIO. It is switched on by a write to register `0x9
 | `guition-esp32-p4-jc8012p4a1-v2` | 10.1" | 800×1280 | `mipi_dsi` |
 | `guition-esp32-p4-jc8012p4a1-v3` | 10.1" | 800×1280 | `mipi_dsi` |
 
-The display of the `guition-esp32-jc8048w535` runs on `qspi_dbi`. Its touch controller is an `axs15231`.
+`guition-esp32-jc8048w535` is the 3.5" board that Guition sells as JC3248W535. The file keeps the name it has upstream. Its display runs on `qspi_dbi`, and its touch controller is an `axs15231`.
 
 ### JC8012P4A1 revisions
 

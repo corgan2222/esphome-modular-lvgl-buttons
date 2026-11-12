@@ -62,7 +62,8 @@ for row in "${DISPLAYS[@]}"; do
   fi
 
   kill_prog
-  ( cd "$(dirname "$BIN")" && ./program >/tmp/clawd_run.log 2>&1 & )
+  # Start it by its full path: kill_prog finds the process by that path.
+  ( cd "$(dirname "$BIN")" && "$BIN" >/tmp/clawd_run.log 2>&1 & )
 
   "$PY" "$CAP" --name clawdmeter-sdl --settle "$SETTLE" --out "$OUT/$name.png" \
     || { echo "  CAPTURE FAILED"; fail=1; }
